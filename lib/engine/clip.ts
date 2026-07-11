@@ -151,7 +151,7 @@ export async function renderClip(
     ctx.globalAlpha = 1;
   };
 
-  const style = plan.transition ?? 'fade';
+  const style = plan.transition ?? 'mix';
   const MIX_ORDER: Exclude<ClipTransition, 'mix'>[] = ['fade', 'slide', 'zoom', 'wipe'];
   const ease = (x: number) => x * x * (3 - 2 * x); // smoothstep
 

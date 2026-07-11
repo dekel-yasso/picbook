@@ -31,7 +31,7 @@ interface ClipProps {
 
 export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVideo, progress, onClose }: ClipProps) {
   const [length, setLength] = useState<(typeof LENGTHS)[number]['label']>('Medium');
-  const [transition, setTransition] = useState<ClipTransition>('fade');
+  const [transition, setTransition] = useState<ClipTransition>('mix');
   useEffect(() => {
     const stored = localStorage.getItem('picbook-clip-transition') as ClipTransition | null;
     if (stored && TRANSITIONS.some((t) => t.value === stored)) setTransition(stored);
