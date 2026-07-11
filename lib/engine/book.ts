@@ -5,6 +5,7 @@
 // target allows) so quiet days still appear in the book, then best-X selection
 // runs within each day with a tight diversity window.
 
+import { SCENE_CAPTIONS_HE, type Lang } from '../i18n-strings';
 import { takenTime } from './cluster';
 import { dot } from './features';
 import { selectBest } from './select';
@@ -22,6 +23,7 @@ export function planBook(
   target: number,
   places?: Map<string, string>,
   pinnedIds?: Set<string>,
+  lang: Lang = 'en',
 ): BookPlan {
   const sorted = [...keepers].sort((a, b) => takenTime(a) - takenTime(b));
   const byDay = new Map<string, PhotoMeta[]>();
@@ -60,11 +62,17 @@ export function planBook(
       }
     }
     const place = places?.get(key);
-    const scene = sceneCaption(chosen);
+    const rawScene = sceneCaption(chosen);
+    const scene = rawScene && lang === 'he' ? (SCENE_CAPTIONS_HE[rawScene] ?? rawScene) : rawScene;
+    const dayWord = lang === 'he' ? 'יום' : 'Day';
     chapters.push({
       key,
-      title: place ? `Day ${dayNumber} — ${place}` : `Day ${dayNumber} — ${formatDay(takenTime(photos[0]))}`,
-      caption: [place ? formatDay(takenTime(photos[0])) : null, scene].filter(Boolean).join(' · ') || undefined,
+      title: place
+        ? `${dayWord} ${dayNumber} — ${place}`
+        : `${dayWord} ${dayNumber} — ${formatDay(takenTime(photos[0]), lang)}`,
+      caption:
+        [place ? formatDay(takenTime(photos[0]), lang) : null, scene].filter(Boolean).join(' · ') ||
+        undefined,
       heroId: hero.id,
       pages: paginate(chosen.filter((p) => p.id !== hero.id).map((p) => p.id)),
     });
@@ -142,6 +150,10 @@ function paginate(ids: string[]): { photoIds: string[] }[] {
   return pages;
 }
 
-function formatDay(t: number): string {
-  return new Date(t).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+function formatDay(t: number, lang: Lang): string {
+  return new Date(t).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { planBook } from '@/lib/engine/book';
 import { getDB } from '@/lib/engine/db';
 import type { BookPlan, PhotoMeta } from '@/lib/engine/types';
+import { useI18n } from '@/lib/i18n';
 import { PdfPreview } from './pdf-preview';
 import { Thumb } from './thumb';
 
@@ -19,6 +20,7 @@ interface BookProps {
 }
 
 export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, renderBook, progress, onClose }: BookProps) {
+  const { lang, t } = useI18n();
   const maxPhotos = keepers.length;
   const [target, setTarget] = useState(Math.min(48, maxPhotos));
   const [titles, setTitles] = useState<Record<string, string>>({});
@@ -51,8 +53,8 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
   }, [loaded, target, titles]);
 
   const plan = useMemo(
-    () => planBook(keepers, target, places, pinnedIds),
-    [keepers, target, places, pinnedIds],
+    () => planBook(keepers, target, places, pinnedIds, lang),
+    [keepers, target, places, pinnedIds, lang],
   );
   const titled = useMemo<BookPlan>(
     () => ({
@@ -99,11 +101,11 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex items-center justify-between border-b border-neutral-500/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button onClick={onClose} aria-label="Close" className="rounded-lg px-2 py-1 text-xl leading-none">
+        <button onClick={onClose} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
           ✕
         </button>
-        <span className="text-sm font-semibold">Your book</span>
-        <span className="text-xs text-neutral-500">{pageCount} pages</span>
+        <span className="text-sm font-semibold">{t('yourBook')}</span>
+        <span className="text-xs text-neutral-500">{t('pagesCount', { n: pageCount })}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -111,11 +113,11 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="flex justify-between text-neutral-500">
               <span>
-                Photos in the book
-                {pinnedIds.size > 0 && ` · ${pinnedIds.size} 📖 must-haves`}
+                {t('photosInBook')}
+                {pinnedIds.size > 0 && t('mustHaves', { n: pinnedIds.size })}
               </span>
               <span className="font-medium text-foreground">
-                {plan.photoCount} of {maxPhotos}
+                {t('ofMax', { n: plan.photoCount, max: maxPhotos })}
               </span>
             </span>
             <input
@@ -143,7 +145,7 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
                 <div className="relative h-28 w-28">
                   <Thumb id={c.heroId} alt="Chapter hero" />
                   <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] font-semibold text-white">
-                    hero
+                    {t('chapterHero')}
                   </span>
                 </div>
                 {c.pages.map((p, i) => (
@@ -181,11 +183,11 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
               disabled={progress.running || plan.photoCount === 0}
               className="flex-1 rounded-xl border border-neutral-500/50 py-3 text-sm font-semibold disabled:opacity-40"
             >
-              {progress.running ? 'Rendering…' : pdf ? 'Re-render' : 'Render PDF'}
+              {progress.running ? t('rendering') : pdf ? t('reRender') : t('renderPdf')}
             </button>
             {pdf && !progress.running && (
               <button onClick={save} className="flex-1 rounded-xl bg-foreground py-3 text-sm font-semibold text-background">
-                Save PDF ({(pdf.size / 1024 / 1024).toFixed(1)} MB)
+                {t('savePdf', { size: (pdf.size / 1024 / 1024).toFixed(1) })}
               </button>
             )}
           </div>

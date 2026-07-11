@@ -12,6 +12,8 @@ import { deleteTripRemote, syncNow, whoami } from '@/lib/engine/sync';
 import { createTrip, DEFAULT_TRIP_ID, loadTrips, renameTrip } from '@/lib/engine/trips';
 import type { Decision, PhotoMeta, Trip } from '@/lib/engine/types';
 import { useEngine } from '@/lib/engine/useEngine';
+import { useI18n } from '@/lib/i18n';
+import { themeLabel } from '@/lib/i18n-strings';
 import { AccountOverlay } from './account';
 import { BookOverlay } from './book';
 import { ClipOverlay } from './clip';
@@ -38,6 +40,7 @@ export default function Home() {
     requestRenditions,
     renderBook,
   } = useEngine();
+  const { lang, t } = useI18n();
   const [bookOpen, setBookOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -88,7 +91,7 @@ export default function Home() {
   }, []);
   const switchTrip = useCallback(async (value: string) => {
     if (value === '__new') {
-      const name = window.prompt('Trip name');
+      const name = window.prompt(t('tripNamePrompt'));
       if (!name) return;
       const trip = await createTrip(name);
       setTrips(await loadTrips());
@@ -98,23 +101,20 @@ export default function Home() {
     }
     setActiveTripId(value);
     localStorage.setItem('picbook-trip', value);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
   const renameActive = useCallback(async () => {
-    const current = trips.find((t) => t.id === activeTripId);
-    const name = window.prompt('Rename trip', current?.name ?? '');
+    const current = trips.find((tr) => tr.id === activeTripId);
+    const name = window.prompt(t('renameTrip'), current?.name ?? '');
     if (!name) return;
     await renameTrip(activeTripId, name);
     setTrips(await loadTrips());
-  }, [trips, activeTripId]);
+  }, [trips, activeTripId, t]);
 
   const deleteActiveTrip = useCallback(async () => {
-    const current = trips.find((t) => t.id === activeTripId);
+    const current = trips.find((tr) => tr.id === activeTripId);
     const count = photos.filter((p) => (p.tripId ?? DEFAULT_TRIP_ID) === activeTripId).length;
-    if (
-      !window.confirm(
-        `Delete "${current?.name ?? 'this trip'}" and its ${count} photos from PicBook?\n\nYour originals in the camera roll are not touched.`,
-      )
-    ) {
+    if (!window.confirm(t('deleteTripConfirm', { name: current?.name ?? '', n: count }))) {
       return;
     }
     const removed = await deleteTrip(activeTripId);
@@ -254,7 +254,7 @@ export default function Home() {
     (async () => {
       for (const [key, dayClusters] of days) {
         if (cancelled || places.has(key)) continue;
-        const place = await placeForPhotos(dayClusters.flatMap((c) => c.photos));
+        const place = await placeForPhotos(dayClusters.flatMap((c) => c.photos), lang);
         if (cancelled) return;
         if (place) setPlaces((prev) => new Map(prev).set(key, place));
       }
@@ -263,7 +263,8 @@ export default function Home() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run when the day set changes, not when places fills in
-  }, [days]);
+  }, [days, lang]);
+  useEffect(() => setPlaces(new Map()), [lang]);
 
   const themes = useMemo(() => {
     const counts = new Map<string, number>();
@@ -375,7 +376,7 @@ export default function Home() {
             disabled={progress.running || receiving}
             className="rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-40"
           >
-            Add photos
+            {t('addPhotos')}
           </button>
           {hasDirPicker && (
             <button
@@ -383,7 +384,7 @@ export default function Home() {
               disabled={progress.running || receiving}
               className="rounded-lg border border-neutral-500/50 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
             >
-              Add a folder
+              {t('addFolder')}
             </button>
           )}
         </div>
@@ -401,20 +402,20 @@ export default function Home() {
               {t.name}
             </option>
           ))}
-          <option value="__new">＋ New trip…</option>
+          <option value="__new">{t('newTrip')}</option>
         </select>
         <button
           onClick={renameActive}
-          aria-label="Rename trip"
-          title="Rename trip"
+          aria-label={t('renameTrip')}
+          title={t('renameTrip')}
           className="rounded-lg border border-neutral-500/40 px-3 py-2 text-xs font-medium text-neutral-500"
         >
           ✎
         </button>
         <button
           onClick={deleteActiveTrip}
-          aria-label="Delete trip"
-          title="Delete trip"
+          aria-label={t('deleteTrip')}
+          title={t('deleteTrip')}
           className="rounded-lg border border-neutral-500/40 px-3 py-2 text-xs font-medium text-neutral-500"
         >
           🗑
@@ -423,7 +424,7 @@ export default function Home() {
           onClick={() => setAccountOpen(true)}
           className="rounded-lg border border-neutral-500/40 px-3 py-2 text-xs font-medium text-neutral-500"
         >
-          ☁ Sync
+          {t('syncBtn')}
         </button>
       </div>
 
@@ -432,14 +433,12 @@ export default function Home() {
           <div className="flex flex-1 flex-col gap-1.5">
             <div className="h-1.5 w-full animate-pulse rounded-full bg-foreground/60" />
             <p className="text-xs text-neutral-500">
-              {receivingLong
-                ? 'Still receiving… older photos are often stored in iCloud, and iOS downloads every original before handing them over — large selections can take a long time on slow connections. Tip: use WiFi, keep the screen awake, and add ~300 at a time so each batch completes visibly.'
-                : 'Receiving photos from your library… iOS prepares (and may download from iCloud) every photo first, so large selections take a while. Keep the app open.'}
+              {receivingLong ? t('receivingLong') : t('receiving')}
             </p>
           </div>
           <button
             onClick={() => setReceiving(false)}
-            aria-label="Dismiss"
+            aria-label={t('dismiss')}
             className="px-1 text-neutral-500"
           >
             ✕
@@ -461,8 +460,8 @@ export default function Home() {
           </div>
           <p className="text-xs text-neutral-500">
             {progress.running
-              ? `Importing ${progress.done} / ${progress.total}…`
-              : `Scoring ${analyzeProgress.done} / ${analyzeProgress.total}…`}
+              ? t('importing', { done: progress.done, total: progress.total })
+              : t('scoring', { done: analyzeProgress.done, total: analyzeProgress.total })}
           </p>
         </div>
       )}
@@ -479,8 +478,8 @@ export default function Home() {
           </div>
           <p className="text-xs text-neutral-500">
             {embedProgress.phase === 'download'
-              ? `Downloading the vision model (one-time)… ${embedProgress.done}%`
-              : `Understanding photos ${embedProgress.done} / ${embedProgress.total}…`}
+              ? t('downloadingModel', { pct: embedProgress.done })
+              : t('understanding', { done: embedProgress.done, total: embedProgress.total })}
           </p>
         </div>
       )}
@@ -496,7 +495,7 @@ export default function Home() {
             />
           </div>
           <p className="text-xs text-neutral-500">
-            Reading faces {facesProgress.done} / {facesProgress.total}…
+            {t('readingFaces', { done: facesProgress.done, total: facesProgress.total })}
           </p>
         </div>
       )}
@@ -505,38 +504,37 @@ export default function Home() {
       {photos.length > 0 && !clipEnabled && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-500/30 p-3">
           <p className="text-xs text-neutral-500">
-            <span className="font-medium text-foreground">Smart grouping</span> — an on-device
-            vision model for better duplicate detection, themes, and book variety. One-time ~85MB
-            download; photos never leave this device.
+            <span className="font-medium text-foreground">{t('smartTitle')}</span>
+            {t('smartBody')}
           </p>
           <button
             onClick={enableClip}
             className="shrink-0 rounded-lg bg-foreground px-3 py-2 text-xs font-medium text-background"
           >
-            Enable
+            {t('enable')}
           </button>
         </div>
       )}
 
-      {error && <p className="text-sm text-red-500">Engine error: {error}</p>}
+      {error && <p className="text-sm text-red-500">{t('engineError', { message: error })}</p>}
 
       {tripPhotos.length > 0 ? (
         <>
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-neutral-500">
-              {readyCount} photos · {keepers.length} keepers · {readyCount - keepers.length} culled
-              {unsupported > 0 && ` · ${unsupported} unsupported`}
+              {t('stats', { photos: readyCount, keepers: keepers.length, culled: readyCount - keepers.length })}
+              {unsupported > 0 && t('statsUnsupported', { n: unsupported })}
             </p>
             <div className="flex overflow-hidden rounded-lg border border-neutral-500/40 text-xs">
               {(['all', 'keepers'] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-3 py-1.5 font-medium capitalize ${
+                  className={`px-3 py-1.5 font-medium ${
                     view === v ? 'bg-foreground text-background' : 'text-neutral-500'
                   }`}
                 >
-                  {v}
+                  {v === 'all' ? t('viewAll') : t('viewKeepers')}
                 </button>
               ))}
             </div>
@@ -544,17 +542,17 @@ export default function Home() {
 
           {themes.length > 1 && (
             <div className="flex gap-1.5 overflow-x-auto">
-              {[null, ...themes].map((t) => (
+              {[null, ...themes].map((th) => (
                 <button
-                  key={t ?? 'all'}
-                  onClick={() => setThemeFilter(t)}
+                  key={th ?? 'all'}
+                  onClick={() => setThemeFilter(th)}
                   className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-                    themeFilter === t
+                    themeFilter === th
                       ? 'border-foreground bg-foreground text-background'
                       : 'border-neutral-500/40 text-neutral-500'
                   }`}
                 >
-                  {t ?? 'All themes'}
+                  {th ? themeLabel(lang, th) : t('allThemes')}
                 </button>
               ))}
             </div>
@@ -578,7 +576,12 @@ export default function Home() {
             return (
               <section key={label} className="flex flex-col gap-2">
                 <h2 className="text-sm font-medium text-neutral-500">
-                  {label}
+                  {new Date(label).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
                   {places.get(label) && (
                     <span className="text-neutral-400"> — {places.get(label)}</span>
                   )}
@@ -631,9 +634,9 @@ export default function Home() {
       ) : (
         !busy && (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-neutral-500">
-            <p className="text-base font-medium text-foreground">No photos yet</p>
+            <p className="text-base font-medium text-foreground">{t('noPhotos')}</p>
             <p className="max-w-xs text-sm">
-              Add your travel photos to start. Everything runs on this device — photos never leave it.
+              {t('noPhotosBody')}
             </p>
           </div>
         )
@@ -644,34 +647,34 @@ export default function Home() {
            momentum. mt-auto keeps it at the viewport bottom for short content. */
         <footer className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-neutral-500/30 bg-background/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            <span className="text-sm font-medium">{keepers.length} keepers</span>
+            <span className="text-sm font-medium">{t('keepersCount', { n: keepers.length })}</span>
             <div className="flex gap-2">
               <button
                 onClick={exportList}
                 className="rounded-lg border border-neutral-500/50 px-3 py-2 text-xs font-medium"
               >
-                Export list
+                {t('exportList')}
               </button>
               {canShare && shareableFiles.length > 0 && (
                 <button
                   onClick={shareKeepers}
                   className="rounded-lg border border-neutral-500/50 px-3 py-2 text-xs font-medium"
                 >
-                  Share {shareableFiles.length}
+                  {t('shareN', { n: shareableFiles.length })}
                 </button>
               )}
               <button
                 onClick={() => setClipOpen(true)}
-                aria-label="Trip clip"
+                aria-label={t('tripClip')}
                 className="rounded-lg border border-neutral-500/50 px-3 py-2 text-xs font-medium"
               >
-                🎬 Clip
+                {t('clipBtn')}
               </button>
               <button
                 onClick={() => setBookOpen(true)}
                 className="rounded-lg bg-foreground px-3 py-2 text-xs font-medium text-background"
               >
-                Book →
+                {t('bookBtn')}
               </button>
             </div>
           </div>

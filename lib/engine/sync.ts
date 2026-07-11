@@ -101,8 +101,8 @@ async function applyBundles(bundles: TripBundle[]): Promise<number> {
   return applied;
 }
 
-/** Pull remote → apply → push local. Resolves to a short human summary. */
-export async function syncNow(): Promise<string> {
+/** Pull remote → apply → push local. Resolves to pulled/pushed counts. */
+export async function syncNow(): Promise<{ pulled: number; pushed: number }> {
   const remote = await api<{ bundles: TripBundle[] }>('/api/sync');
   await applyBundles(remote.bundles);
   const bundles = await collectBundles();
@@ -111,5 +111,5 @@ export async function syncNow(): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ bundles }),
   });
-  return `${remote.bundles.length} pulled · ${pushed.stored} pushed`;
+  return { pulled: remote.bundles.length, pushed: pushed.stored };
 }

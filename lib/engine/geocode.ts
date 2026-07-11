@@ -8,12 +8,15 @@ import type { PhotoMeta } from './types';
 const ENDPOINT = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
 
 /** Representative place name for a set of photos (median GPS), or null. */
-export async function placeForPhotos(photos: PhotoMeta[]): Promise<string | null> {
+export async function placeForPhotos(
+  photos: PhotoMeta[],
+  lang: 'en' | 'he' = 'en',
+): Promise<string | null> {
   const pts = photos.filter((p) => p.gps);
   if (!pts.length) return null;
   const lat = median(pts.map((p) => p.gps!.lat));
   const lon = median(pts.map((p) => p.gps!.lon));
-  const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const key = lang === 'en' ? `${lat.toFixed(2)},${lon.toFixed(2)}` : `${lat.toFixed(2)},${lon.toFixed(2)}|${lang}`;
 
   const db = await getDB();
   const cached = await db.get('geo', key);
@@ -21,7 +24,7 @@ export async function placeForPhotos(photos: PhotoMeta[]): Promise<string | null
 
   try {
     const res = await fetch(
-      `${ENDPOINT}?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&localityLanguage=en`,
+      `${ENDPOINT}?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&localityLanguage=${lang}`,
     );
     if (!res.ok) return null; // don't cache transient failures
     const data: { city?: string; locality?: string; principalSubdivision?: string } =

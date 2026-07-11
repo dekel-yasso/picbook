@@ -23,8 +23,9 @@ export function planClip(
   target: number,
   places?: Map<string, string>,
   pinnedIds?: Set<string>,
+  lang?: import('../i18n-strings').Lang,
 ): ClipPlan {
-  const book = planBook(keepers, target, places, pinnedIds);
+  const book = planBook(keepers, target, places, pinnedIds, lang);
   const segments: ClipSegment[] = [];
   let photoCount = 0;
   for (const chapter of book.chapters) {

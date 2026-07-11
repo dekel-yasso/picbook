@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useI18n } from '@/lib/i18n';
 
 const PAGE_WIDTH = 480;
 
 /** Swipeable page-by-page preview of a rendered PDF, rasterized on-device. */
 export function PdfPreview({ file }: { file: File }) {
+  const { t } = useI18n();
   const [pages, setPages] = useState<string[]>([]);
   const [failed, setFailed] = useState(false);
 
@@ -48,7 +50,7 @@ export function PdfPreview({ file }: { file: File }) {
   if (failed) return null; // preview is a bonus — Save still works
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-xs font-medium text-neutral-500">Preview — swipe through the pages</p>
+      <p className="text-xs font-medium text-neutral-500">{t('previewSwipe')}</p>
       <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
         {pages.map((url, i) => (
           // eslint-disable-next-line @next/next/no-img-element -- transient blob URLs

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '@/lib/i18n';
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -10,6 +11,7 @@ const CHECK_INTERVAL_MS = 15 * 60 * 1000;
  * on launch, whenever the app returns to the foreground, and periodically.
  */
 export function UpdateBanner() {
+  const { t } = useI18n();
   const [available, setAvailable] = useState(false);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function UpdateBanner() {
       onClick={update}
       className="w-full rounded-lg bg-amber-500/15 px-3 py-2 text-center text-xs font-medium text-amber-600"
     >
-      ⟳ A new version of PicBook is available — tap to update
+      {t('updateAvailable')}
     </button>
   );
 }

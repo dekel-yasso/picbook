@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clipSeconds, planClip } from '@/lib/engine/clip';
 import type { ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
+import { useI18n } from '@/lib/i18n';
 import { Thumb } from './thumb';
 
 const LENGTHS = [
@@ -30,6 +31,7 @@ interface ClipProps {
 }
 
 export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVideo, progress, onClose }: ClipProps) {
+  const { lang, t } = useI18n();
   const [length, setLength] = useState<(typeof LENGTHS)[number]['label']>('Medium');
   const [transition, setTransition] = useState<ClipTransition>('mix');
   useEffect(() => {
@@ -54,8 +56,8 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
 
   const plan = useMemo(() => {
     const target = LENGTHS.find((l) => l.label === length)?.photos ?? 40;
-    return { ...planClip(keepers, Math.min(target, keepers.length), places, pinnedIds), transition };
-  }, [keepers, length, places, pinnedIds, transition]);
+    return { ...planClip(keepers, Math.min(target, keepers.length), places, pinnedIds, lang), transition };
+  }, [keepers, length, places, pinnedIds, transition, lang]);
   const seconds = useMemo(() => clipSeconds(plan), [plan]);
   const photoIds = useMemo(
     () => plan.segments.filter((s) => s.kind === 'photo').map((s) => (s.kind === 'photo' ? s.id : '')),
@@ -96,10 +98,10 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex items-center justify-between border-b border-neutral-500/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button onClick={onClose} aria-label="Close" className="rounded-lg px-2 py-1 text-xl leading-none">
+        <button onClick={onClose} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
           ✕
         </button>
-        <span className="text-sm font-semibold">Trip clip</span>
+        <span className="text-sm font-semibold">{t('tripClip')}</span>
         <span className="text-xs text-neutral-500">~{seconds}s</span>
       </div>
 
@@ -114,23 +116,23 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                   length === l.label ? 'bg-foreground text-background' : 'text-neutral-500'
                 }`}
               >
-                {l.label}
+                {l.label === 'Short' ? t('lenShort') : l.label === 'Medium' ? t('lenMedium') : t('lenLong')}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-1.5 overflow-x-auto">
-            <span className="shrink-0 text-xs text-neutral-500">Transition:</span>
-            {TRANSITIONS.map((t) => (
+            <span className="shrink-0 text-xs text-neutral-500">{t('transition')}</span>
+            {TRANSITIONS.map((tr) => (
               <button
-                key={t.value}
-                onClick={() => pickTransition(t.value)}
+                key={tr.value}
+                onClick={() => pickTransition(tr.value)}
                 className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-                  transition === t.value
+                  transition === tr.value
                     ? 'border-foreground bg-foreground text-background'
                     : 'border-neutral-500/40 text-neutral-500'
                 }`}
               >
-                {t.label}
+                {tr.label === 'Fade' ? t('trFade') : tr.label === 'Slide' ? t('trSlide') : tr.label === 'Zoom' ? t('trZoom') : tr.label === 'Wipe' ? t('trWipe') : t('trMix')}
               </button>
             ))}
           </div>
@@ -141,12 +143,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
               controls
               playsInline
               className="w-full rounded-lg bg-black"
-              aria-label="Clip preview"
+              aria-label={t('clipPreview')}
             />
           )}
           <p className="text-xs text-neutral-500">
-            {plan.photoCount} photos in day order, with title cards, gentle motion, and crossfades.
-            Square 1080p, silent — rendered entirely on this device.
+            {t('clipDesc', { n: plan.photoCount })}
           </p>
           <div className="grid grid-cols-6 gap-1">
             {photoIds.slice(0, 24).map((id) => (
@@ -173,14 +174,14 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
               disabled={progress.running || plan.photoCount === 0}
               className="flex-1 rounded-xl border border-neutral-500/50 py-3 text-sm font-semibold disabled:opacity-40"
             >
-              {progress.running ? 'Rendering…' : video ? 'Re-render' : 'Render clip'}
+              {progress.running ? t('rendering') : video ? t('reRender') : t('renderClip')}
             </button>
             {video && !progress.running && (
               <button
                 onClick={save}
                 className="flex-1 rounded-xl bg-foreground py-3 text-sm font-semibold text-background"
               >
-                Save video ({(video.size / 1024 / 1024).toFixed(1)} MB)
+                {t('saveVideo', { size: (video.size / 1024 / 1024).toFixed(1) })}
               </button>
             )}
           </div>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isKeeper, type Cluster } from '@/lib/engine/cluster';
 import { getDB } from '@/lib/engine/db';
 import type { Decision, PhotoMeta } from '@/lib/engine/types';
+import { useI18n } from '@/lib/i18n';
 import { useThumbUrl } from './thumb';
 
 const SWIPE_PX = 50;
@@ -35,6 +36,7 @@ export function ReviewOverlay({
   onClose,
   getFile,
 }: ReviewProps) {
+  const { t } = useI18n();
   // Snapshot the list on open: decisions made while browsing must not reshuffle
   // positions under the user's thumbs (e.g. rejecting in the Keepers view).
   // Deleting a photo removes it from this snapshot in place.
@@ -93,7 +95,7 @@ export function ReviewOverlay({
 
   const deleteCurrent = useCallback(async () => {
     if (settle) return;
-    if (!window.confirm('Delete this photo from PicBook? Your original in the camera roll stays.')) {
+    if (!window.confirm(t('deletePhotoConfirm'))) {
       return;
     }
     const id = photo.id;
@@ -104,7 +106,7 @@ export function ReviewOverlay({
     }
     setList((prev) => prev.filter((e) => e.photo.id !== id));
     setIndex((i) => Math.min(i, list.length - 2));
-  }, [settle, photo.id, list.length, onDelete, onClose]);
+  }, [settle, photo.id, list.length, onDelete, onClose, t]);
 
   // Commit is idempotent and driven by BOTH transitionend and a timer:
   // transitionend can be dropped (hidden tab, iOS quirks), and the timer alone
@@ -206,7 +208,7 @@ export function ReviewOverlay({
     >
       {!landscape && (
         <div className="flex items-center justify-between px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <button onClick={onClose} aria-label="Close" className="rounded-lg px-2 py-1 text-xl leading-none">
+          <button onClick={onClose} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
             ✕
           </button>
           <span className="text-sm text-neutral-400">
@@ -218,12 +220,12 @@ export function ReviewOverlay({
               disabled={!decision}
               className="rounded-lg px-2 py-1 text-xs text-neutral-400 disabled:opacity-0"
             >
-              Reset
+              {t('reset')}
             </button>
             <button
               onClick={deleteCurrent}
-              aria-label="Delete photo"
-              title="Delete photo"
+              aria-label={t('deletePhoto')}
+              title={t('deletePhoto')}
               className="rounded-lg px-2 py-1 text-base leading-none text-neutral-400"
             >
               🗑
@@ -254,7 +256,7 @@ export function ReviewOverlay({
           <>
             <button
               onClick={onClose}
-              aria-label="Close"
+              aria-label={t('close')}
               className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1.5 text-lg leading-none"
             >
               ✕
@@ -266,22 +268,22 @@ export function ReviewOverlay({
               onClick={() => decideAndAdvance('reject')}
               className="absolute bottom-3 left-3 rounded-full bg-red-600/90 px-5 py-2.5 text-sm font-semibold"
             >
-              ✕ Reject
+              {t('reject')}
             </button>
             <button
               onClick={() => decideAndAdvance('book')}
-              aria-label="Must be in the book"
+              aria-label={t('mustBook')}
               className={`absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full px-5 py-2.5 text-sm font-semibold ${
                 decision === 'book' ? 'bg-amber-500 text-black' : 'bg-amber-600/80'
               }`}
             >
-              📖 Book
+              📖
             </button>
             <button
               onClick={() => decideAndAdvance('keep')}
               className="absolute bottom-3 right-3 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold"
             >
-              ✓ Keep
+              {t('keep')}
             </button>
           </>
         )}
@@ -314,11 +316,11 @@ export function ReviewOverlay({
               onClick={() => decideAndAdvance('reject')}
               className="flex-1 rounded-xl bg-red-600/90 py-3.5 text-sm font-semibold"
             >
-              ✕ Reject
+              {t('reject')}
             </button>
             <button
               onClick={() => decideAndAdvance('book')}
-              aria-label="Must be in the book"
+              aria-label={t('mustBook')}
               className={`rounded-xl px-4 py-3.5 text-sm font-semibold ${
                 decision === 'book' ? 'bg-amber-500 text-black' : 'bg-amber-600/80'
               }`}
@@ -329,12 +331,10 @@ export function ReviewOverlay({
               onClick={() => decideAndAdvance('keep')}
               className="flex-1 rounded-xl bg-emerald-600 py-3.5 text-sm font-semibold"
             >
-              ✓ Keep
+              {t('keep')}
             </button>
           </div>
-          <p className="pb-2 text-center text-[11px] text-neutral-500">
-            swipe ↑ keep · ↓ reject · ←→ browse · 📖 always in the book
-          </p>
+          <p className="pb-2 text-center text-[11px] text-neutral-500">{t('swipeHint')}</p>
         </>
       )}
     </div>
@@ -350,6 +350,7 @@ function FateBadge({
   decisions: Map<string, Decision>;
   below?: boolean;
 }) {
+  const { t } = useI18n();
   const d = decisions.get(entry.photo.id);
   const kept = isKeeper(entry.photo, entry.cluster, decisions);
   return (
@@ -359,14 +360,14 @@ function FateBadge({
       }`}
     >
       {d === 'book'
-        ? '📖 In the book'
+        ? t('inBook')
         : kept
           ? d === 'keep'
-            ? 'Kept'
-            : 'Keeping (auto)'
+            ? t('kept')
+            : t('keepingAuto')
           : d === 'reject'
-            ? 'Rejected'
-            : 'Culling (auto)'}
+            ? t('rejected')
+            : t('cullingAuto')}
     </span>
   );
 }
