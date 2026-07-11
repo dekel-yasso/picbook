@@ -13,6 +13,7 @@ const LENGTHS = [
 
 interface ClipProps {
   keepers: PhotoMeta[];
+  pinnedIds: Set<string>;
   places: Map<string, string>;
   getFile: (id: string) => File | undefined;
   renderClipVideo: (plan: ClipPlan, files: Map<string, File>) => Promise<Uint8Array>;
@@ -20,15 +21,15 @@ interface ClipProps {
   onClose: () => void;
 }
 
-export function ClipOverlay({ keepers, places, getFile, renderClipVideo, progress, onClose }: ClipProps) {
+export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVideo, progress, onClose }: ClipProps) {
   const [length, setLength] = useState<(typeof LENGTHS)[number]['label']>('Medium');
   const [video, setVideo] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const plan = useMemo(() => {
     const target = LENGTHS.find((l) => l.label === length)?.photos ?? 40;
-    return planClip(keepers, Math.min(target, keepers.length), places);
-  }, [keepers, length, places]);
+    return planClip(keepers, Math.min(target, keepers.length), places, pinnedIds);
+  }, [keepers, length, places, pinnedIds]);
   const seconds = useMemo(() => clipSeconds(plan), [plan]);
   const photoIds = useMemo(
     () => plan.segments.filter((s) => s.kind === 'photo').map((s) => (s.kind === 'photo' ? s.id : '')),

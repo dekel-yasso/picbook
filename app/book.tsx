@@ -9,6 +9,7 @@ import { Thumb } from './thumb';
 interface BookProps {
   tripId: string;
   keepers: PhotoMeta[];
+  pinnedIds: Set<string>;
   places: Map<string, string>;
   getFile: (id: string) => File | undefined;
   renderBook: (plan: BookPlan, files: Map<string, File>) => Promise<Uint8Array>;
@@ -16,7 +17,7 @@ interface BookProps {
   onClose: () => void;
 }
 
-export function BookOverlay({ tripId, keepers, places, getFile, renderBook, progress, onClose }: BookProps) {
+export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, renderBook, progress, onClose }: BookProps) {
   const maxPhotos = keepers.length;
   const [target, setTarget] = useState(Math.min(48, maxPhotos));
   const [titles, setTitles] = useState<Record<string, string>>({});
@@ -48,7 +49,10 @@ export function BookOverlay({ tripId, keepers, places, getFile, renderBook, prog
     return () => clearTimeout(t);
   }, [loaded, target, titles]);
 
-  const plan = useMemo(() => planBook(keepers, target, places), [keepers, target, places]);
+  const plan = useMemo(
+    () => planBook(keepers, target, places, pinnedIds),
+    [keepers, target, places, pinnedIds],
+  );
   const titled = useMemo<BookPlan>(
     () => ({
       ...plan,
@@ -105,7 +109,10 @@ export function BookOverlay({ tripId, keepers, places, getFile, renderBook, prog
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-4">
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="flex justify-between text-neutral-500">
-              <span>Photos in the book</span>
+              <span>
+                Photos in the book
+                {pinnedIds.size > 0 && ` · ${pinnedIds.size} 📖 must-haves`}
+              </span>
               <span className="font-medium text-foreground">
                 {plan.photoCount} of {maxPhotos}
               </span>

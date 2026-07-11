@@ -241,6 +241,12 @@ export default function Home() {
     () => clusters.flatMap((c) => c.photos.filter((p) => isKeeper(p, c, decisions))),
     [clusters, decisions],
   );
+  // Must-be-in-the-book pins (📖) — guaranteed slots in the book and clip.
+  const pinnedIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const [id, d] of decisions) if (d === 'book') set.add(id);
+    return set;
+  }, [decisions]);
   // Day → place name via reverse geocoding (coordinates only, cached forever).
   const [places, setPlaces] = useState<Map<string, string>>(new Map());
   useEffect(() => {
@@ -688,6 +694,7 @@ export default function Home() {
       {clipOpen && (
         <ClipOverlay
           keepers={keepers}
+          pinnedIds={pinnedIds}
           places={places}
           getFile={getFile}
           renderClipVideo={renderClipVideo}
@@ -700,6 +707,7 @@ export default function Home() {
         <BookOverlay
           tripId={activeTripId}
           keepers={keepers}
+          pinnedIds={pinnedIds}
           places={places}
           getFile={getFile}
           renderBook={renderBook}
@@ -741,7 +749,9 @@ function Cell({
   const badge = decision
     ? decision === 'keep'
       ? { label: '✓', cls: 'bg-emerald-500' }
-      : { label: '✕', cls: 'bg-red-500' }
+      : decision === 'book'
+        ? { label: '📖', cls: 'bg-amber-500' }
+        : { label: '✕', cls: 'bg-red-500' }
     : cluster.photos.length > 1 && cluster.bestId === photo.id
       ? { label: '★', cls: 'bg-emerald-500' }
       : null;

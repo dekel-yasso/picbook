@@ -21,6 +21,7 @@ export function planBook(
   keepers: PhotoMeta[],
   target: number,
   places?: Map<string, string>,
+  pinnedIds?: Set<string>,
 ): BookPlan {
   const sorted = [...keepers].sort((a, b) => takenTime(a) - takenTime(b));
   const byDay = new Map<string, PhotoMeta[]>();
@@ -38,11 +39,15 @@ export function planBook(
   const chapters: BookChapter[] = [];
   for (let i = 0; i < days.length; i++) {
     dayNumber++;
-    if (quotas[i] === 0) continue;
     const [key, photos] = days[i];
-    const chosen = selectBest(photos, quotas[i], { timeScaleMs: DAY_TIME_SCALE_MS }).sort(
-      (a, b) => takenTime(a) - takenTime(b),
-    );
+    // User's must-haves always make it in — even on days whose quota is 0.
+    const pinned = pinnedIds ? photos.filter((p) => pinnedIds.has(p.id)) : [];
+    const quota = Math.max(quotas[i], pinned.length);
+    if (quota === 0) continue;
+    const chosen = selectBest(photos, quota, {
+      timeScaleMs: DAY_TIME_SCALE_MS,
+      seeds: pinned,
+    }).sort((a, b) => takenTime(a) - takenTime(b));
 
     // Hero: sharpest well-exposed shot of the day.
     let hero = chosen[0];

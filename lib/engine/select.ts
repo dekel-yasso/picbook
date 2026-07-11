@@ -15,12 +15,16 @@ export interface SelectOptions {
   /** A candidate this close in hash AND time to a picked photo is a near-duplicate. */
   dedupDistance?: number;
   dedupWindowMs?: number;
+  /** Pre-picked photos (user's must-haves): always returned first; diversity
+   *  and dedup build around them. May push the result above x. */
+  seeds?: PhotoMeta[];
 }
 
 export function selectBest(photos: PhotoMeta[], x: number, opts: SelectOptions = {}): PhotoMeta[] {
   const timeScale = opts.timeScaleMs ?? 3 * 60 * 60 * 1000;
   const dedupDistance = opts.dedupDistance ?? 8;
   const dedupWindow = opts.dedupWindowMs ?? 2 * 60 * 60 * 1000;
+  const seeds = opts.seeds ?? [];
   if (x >= photos.length) return [...photos];
 
   // Rank-normalize sharpness so one crazy-sharp outlier doesn't flatten the rest.
@@ -45,13 +49,23 @@ export function selectBest(photos: PhotoMeta[], x: number, opts: SelectOptions =
     ((!!a.phash && !!b.phash && hamming(a.phash, b.phash) <= dedupDistance) ||
       (!!a.embedding && !!b.embedding && dot(a.embedding, b.embedding) >= 0.96));
 
-  const remaining = new Set(photos);
-  const picked: PhotoMeta[] = [];
+  const seedIds = new Set(seeds.map((s) => s.id));
+  const remaining = new Set(photos.filter((p) => !seedIds.has(p.id)));
+  const picked: PhotoMeta[] = [...seeds];
   // Each candidate's distance to its nearest picked photo, kept incrementally: O(x·n).
   const nearest = new Map<string, number>();
   // Candidates that became near-duplicates of something picked: hard-excluded
   // unless the quota can't be filled otherwise.
   const dupes = new Set<string>();
+  const absorb = (pick: PhotoMeta) => {
+    for (const p of remaining) {
+      const d = distance(p, pick);
+      const cur = nearest.get(p.id);
+      if (cur === undefined || d < cur) nearest.set(p.id, d);
+      if (isNearDupe(p, pick)) dupes.add(p.id);
+    }
+  };
+  for (const s of seeds) absorb(s);
 
   while (picked.length < x && remaining.size > 0) {
     let best: PhotoMeta | null = null;
@@ -74,12 +88,7 @@ export function selectBest(photos: PhotoMeta[], x: number, opts: SelectOptions =
     if (!pick) break;
     remaining.delete(pick);
     picked.push(pick);
-    for (const p of remaining) {
-      const d = distance(p, pick);
-      const cur = nearest.get(p.id);
-      if (cur === undefined || d < cur) nearest.set(p.id, d);
-      if (isNearDupe(p, pick)) dupes.add(p.id);
-    }
+    absorb(pick);
   }
   return picked;
 }

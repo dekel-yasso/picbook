@@ -36,8 +36,9 @@ export interface PhotoMeta {
   facev?: number;
 }
 
-/** A user's explicit keep/reject override; absent means "trust the auto-pick". */
-export type Decision = 'keep' | 'reject';
+/** A user's explicit override; absent means "trust the auto-pick".
+ *  'book' = keep AND guarantee a spot in the book/clip, no matter the quotas. */
+export type Decision = 'keep' | 'reject' | 'book';
 
 /** One book page: 1–4 photo ids laid out by deterministic rules. */
 export interface BookPage {

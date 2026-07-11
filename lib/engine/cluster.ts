@@ -44,7 +44,7 @@ function popcount(hash: string): number {
 /** Effective fate: an explicit decision wins; otherwise singletons and burst best-picks are keepers. */
 export function isKeeper(p: PhotoMeta, cluster: Cluster, decisions: Map<string, Decision>): boolean {
   const d = decisions.get(p.id);
-  if (d) return d === 'keep';
+  if (d) return d === 'keep' || d === 'book';
   return cluster.photos.length === 1 || cluster.bestId === p.id;
 }
 

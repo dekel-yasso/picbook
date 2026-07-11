@@ -17,13 +17,14 @@ const BITRATE = 5_000_000;
 // Enough resolution for 1080 output; renditions (2048px) downscale, thumbs upscale soft.
 const DECODE_MAX = 1600;
 
-/** Reuses the book planner: same day structure, quotas, and titles. */
+/** Reuses the book planner: same day structure, quotas, titles, and pins. */
 export function planClip(
   keepers: PhotoMeta[],
   target: number,
   places?: Map<string, string>,
+  pinnedIds?: Set<string>,
 ): ClipPlan {
-  const book = planBook(keepers, target, places);
+  const book = planBook(keepers, target, places, pinnedIds);
   const segments: ClipSegment[] = [];
   let photoCount = 0;
   for (const chapter of book.chapters) {

@@ -140,6 +140,7 @@ export function ReviewOverlay({
       else if (e.key === 'ArrowRight') next();
       else if (e.key === 'ArrowUp' || e.key === 'k') decideAndAdvance('keep');
       else if (e.key === 'ArrowDown' || e.key === 'x') decideAndAdvance('reject');
+      else if (e.key === 'b') decideAndAdvance('book');
       else return;
       e.preventDefault();
     };
@@ -268,6 +269,15 @@ export function ReviewOverlay({
               ✕ Reject
             </button>
             <button
+              onClick={() => decideAndAdvance('book')}
+              aria-label="Must be in the book"
+              className={`absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full px-5 py-2.5 text-sm font-semibold ${
+                decision === 'book' ? 'bg-amber-500 text-black' : 'bg-amber-600/80'
+              }`}
+            >
+              📖 Book
+            </button>
+            <button
               onClick={() => decideAndAdvance('keep')}
               className="absolute bottom-3 right-3 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold"
             >
@@ -307,6 +317,15 @@ export function ReviewOverlay({
               ✕ Reject
             </button>
             <button
+              onClick={() => decideAndAdvance('book')}
+              aria-label="Must be in the book"
+              className={`rounded-xl px-4 py-3.5 text-sm font-semibold ${
+                decision === 'book' ? 'bg-amber-500 text-black' : 'bg-amber-600/80'
+              }`}
+            >
+              📖
+            </button>
+            <button
               onClick={() => decideAndAdvance('keep')}
               className="flex-1 rounded-xl bg-emerald-600 py-3.5 text-sm font-semibold"
             >
@@ -314,7 +333,7 @@ export function ReviewOverlay({
             </button>
           </div>
           <p className="pb-2 text-center text-[11px] text-neutral-500">
-            swipe ↑ keep · ↓ reject · ←→ browse
+            swipe ↑ keep · ↓ reject · ←→ browse · 📖 always in the book
           </p>
         </>
       )}
@@ -336,10 +355,18 @@ function FateBadge({
   return (
     <span
       className={`absolute left-3 ${below ? 'top-14' : 'top-3'} rounded px-2 py-0.5 text-xs font-semibold ${
-        kept ? 'bg-emerald-500 text-white' : 'bg-neutral-700 text-neutral-200'
+        d === 'book' ? 'bg-amber-500 text-black' : kept ? 'bg-emerald-500 text-white' : 'bg-neutral-700 text-neutral-200'
       }`}
     >
-      {kept ? (d === 'keep' ? 'Kept' : 'Keeping (auto)') : d === 'reject' ? 'Rejected' : 'Culling (auto)'}
+      {d === 'book'
+        ? '📖 In the book'
+        : kept
+          ? d === 'keep'
+            ? 'Kept'
+            : 'Keeping (auto)'
+          : d === 'reject'
+            ? 'Rejected'
+            : 'Culling (auto)'}
     </span>
   );
 }
