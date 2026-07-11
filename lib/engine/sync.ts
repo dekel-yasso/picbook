@@ -4,13 +4,15 @@
 // never seen are skipped (no thumbs to show — renditions-in-cloud comes later).
 
 import { getDB } from './db';
+import { loadDecisionRecords, normalizeDecision } from './decisions';
 import { DEFAULT_TRIP_ID, loadTrips } from './trips';
-import type { BookDoc, Decision, PhotoMeta, Trip } from './types';
+import type { BookDoc, Decision, DecisionRecord, PhotoMeta, Trip } from './types';
 
 export interface TripBundle {
   trip: Trip;
   photos: Omit<PhotoMeta, 'embedding'>[];
-  decisions: Record<string, Decision>;
+  /** Legacy bundles hold bare Decision strings (treated as timestamp 0). */
+  decisions: Record<string, Decision | DecisionRecord>;
   book?: BookDoc;
   updatedAt: number;
 }
@@ -49,18 +51,16 @@ async function collectBundles(): Promise<TripBundle[]> {
   const db = await getDB();
   const trips = await loadTrips();
   const photos = await db.getAll('photos');
-  const decisionKeys = await db.getAllKeys('decisions');
-  const decisionVals = await db.getAll('decisions');
-  const decisions = new Map(decisionKeys.map((k, i) => [k, decisionVals[i]]));
+  const decisions = await loadDecisionRecords();
   const now = Date.now();
 
   const bundles: TripBundle[] = [];
   for (const trip of trips) {
     const tripPhotos = photos.filter((p) => (p.tripId ?? DEFAULT_TRIP_ID) === trip.id);
-    const tripDecisions: Record<string, Decision> = {};
+    const tripDecisions: Record<string, DecisionRecord> = {};
     for (const p of tripPhotos) {
-      const d = decisions.get(p.id);
-      if (d) tripDecisions[p.id] = d;
+      const rec = decisions.get(p.id);
+      if (rec) tripDecisions[p.id] = rec; // includes tombstones — clears sync too
     }
     bundles.push({
       trip,
@@ -93,8 +93,14 @@ async function applyBundles(bundles: TripBundle[]): Promise<number> {
         await db.put('books', bundle.book, bundle.trip.id);
       }
     }
-    for (const [photoId, decision] of Object.entries(bundle.decisions ?? {})) {
-      await db.put('decisions', decision, photoId);
+    for (const [photoId, raw] of Object.entries(bundle.decisions ?? {})) {
+      const remote = normalizeDecision(raw);
+      const local = await db.get('decisions', photoId);
+      // Newest decision wins — a stale cloud copy must never clobber a fresh
+      // local mark (or a fresh clear).
+      if (!local || remote.at > normalizeDecision(local).at) {
+        await db.put('decisions', remote, photoId);
+      }
     }
     applied++;
   }

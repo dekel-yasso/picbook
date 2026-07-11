@@ -1,11 +1,11 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { BookDoc, Decision, PhotoMeta, Trip } from './types';
+import type { BookDoc, Decision, DecisionRecord, PhotoMeta, Trip } from './types';
 
 interface PicBookDB extends DBSchema {
   photos: { key: string; value: PhotoMeta };
   /** Blob from native ingest; ArrayBuffer when written by backup import (iOS-safe). */
   thumbs: { key: string; value: Blob | ArrayBuffer };
-  decisions: { key: string; value: Decision };
+  decisions: { key: string; value: Decision | DecisionRecord };
   /** Print-quality (2048px JPEG) copies of keepers — survive across sessions. */
   renditions: { key: string; value: Blob };
   books: { key: string; value: BookDoc };

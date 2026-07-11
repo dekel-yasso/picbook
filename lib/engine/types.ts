@@ -40,6 +40,14 @@ export interface PhotoMeta {
  *  'book' = keep AND guarantee a spot in the book/clip, no matter the quotas. */
 export type Decision = 'keep' | 'reject' | 'book';
 
+/** Stored/synced decision with its timestamp — newest wins across devices.
+ *  v: null is a tombstone (the user cleared the decision). Legacy entries are
+ *  bare Decision strings, treated as { v, at: 0 }. */
+export interface DecisionRecord {
+  v: Decision | null;
+  at: number;
+}
+
 /** One book page: 1–4 photo ids laid out by deterministic rules. */
 export interface BookPage {
   photoIds: string[];

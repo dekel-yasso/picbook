@@ -7,9 +7,10 @@
 // header JSON · concatenated thumbnail blobs. Blob parts keep memory flat on
 // both ends — no base64, no giant strings.
 
+import { normalizeDecision } from './decisions';
 import { getDB } from './db';
 import { loadTrips } from './trips';
-import type { BookDoc, Decision, PhotoMeta, Trip } from './types';
+import type { BookDoc, Decision, DecisionRecord, PhotoMeta, Trip } from './types';
 
 const MAGIC = 'PICBOOK1';
 
@@ -18,7 +19,7 @@ interface BackupHeader {
   exportedAt: number;
   trips: Trip[];
   photos: Omit<PhotoMeta, 'embedding'>[];
-  decisions: Record<string, Decision>;
+  decisions: Record<string, Decision | DecisionRecord>;
   books: Record<string, BookDoc>;
   blobs: { id: string; offset: number; size: number; type: string }[];
 }
@@ -130,8 +131,12 @@ export async function importBackup(
     onProgress?.(photosAdded, total);
   }
 
-  for (const [id, decision] of Object.entries(header.decisions ?? {})) {
-    await db.put('decisions', decision, id);
+  for (const [id, raw] of Object.entries(header.decisions ?? {})) {
+    const incoming = normalizeDecision(raw);
+    const local = await db.get('decisions', id);
+    if (!local || incoming.at > normalizeDecision(local).at) {
+      await db.put('decisions', incoming, id);
+    }
   }
   for (const [tripId, doc] of Object.entries(header.books ?? {})) {
     const local = await db.get('books', tripId);
