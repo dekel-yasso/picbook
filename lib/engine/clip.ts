@@ -6,7 +6,7 @@ import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
 import { planBook } from './book';
 import { getDB } from './db';
 import { asBlob } from './images';
-import type { ClipPlan, ClipSegment, EngineEvent, PhotoMeta } from './types';
+import type { ClipPlan, ClipSegment, ClipTransition, EngineEvent, PhotoMeta } from './types';
 
 const SIZE = 1080;
 const FPS = 30;
@@ -151,6 +151,10 @@ export async function renderClip(
     ctx.globalAlpha = 1;
   };
 
+  const style = plan.transition ?? 'fade';
+  const MIX_ORDER: Exclude<ClipTransition, 'mix'>[] = ['fade', 'slide', 'zoom', 'wipe'];
+  const ease = (x: number) => x * x * (3 - 2 * x); // smoothstep
+
   let active = 0;
   for (let f = 0; f < totalFrames; f++) {
     const time = f / FPS;
@@ -163,10 +167,50 @@ export async function renderClip(
 
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, SIZE, SIZE);
-    await drawSegment(active, time - cur.start, 1);
-    if (next && time >= next.start) {
-      const fade = Math.min(1, (time - next.start) / FADE_S);
-      await drawSegment(active + 1, time - next.start, fade);
+    if (!next || time < next.start) {
+      await drawSegment(active, time - cur.start, 1);
+    } else {
+      const p = Math.min(1, (time - next.start) / FADE_S);
+      const kind = style === 'mix' ? MIX_ORDER[active % MIX_ORDER.length] : style;
+      const e = ease(p);
+      const tCur = time - cur.start;
+      const tNext = time - next.start;
+      switch (kind) {
+        case 'slide': // push: both move left together
+          ctx.save();
+          ctx.translate(-e * SIZE, 0);
+          await drawSegment(active, tCur, 1);
+          ctx.restore();
+          ctx.save();
+          ctx.translate((1 - e) * SIZE, 0);
+          await drawSegment(active + 1, tNext, 1);
+          ctx.restore();
+          break;
+        case 'zoom': {
+          // zoom-through: current grows toward the camera and dissolves
+          await drawSegment(active + 1, tNext, 1);
+          const s = 1 + 0.25 * e;
+          ctx.save();
+          ctx.translate(SIZE / 2, SIZE / 2);
+          ctx.scale(s, s);
+          ctx.translate(-SIZE / 2, -SIZE / 2);
+          await drawSegment(active, tCur, 1 - e);
+          ctx.restore();
+          break;
+        }
+        case 'wipe': // next photo revealed left-to-right
+          await drawSegment(active, tCur, 1);
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, e * SIZE, SIZE);
+          ctx.clip();
+          await drawSegment(active + 1, tNext, 1);
+          ctx.restore();
+          break;
+        default: // fade
+          await drawSegment(active, tCur, 1);
+          await drawSegment(active + 1, tNext, p);
+      }
     }
 
     const frame = new VideoFrame(canvas, {

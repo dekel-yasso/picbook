@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clipSeconds, planClip } from '@/lib/engine/clip';
-import type { ClipPlan, PhotoMeta } from '@/lib/engine/types';
+import type { ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
 import { Thumb } from './thumb';
 
 const LENGTHS = [
@@ -10,6 +10,14 @@ const LENGTHS = [
   { label: 'Medium', photos: 40 },
   { label: 'Long', photos: 60 },
 ] as const;
+
+const TRANSITIONS: { value: ClipTransition; label: string }[] = [
+  { value: 'fade', label: 'Fade' },
+  { value: 'slide', label: 'Slide' },
+  { value: 'zoom', label: 'Zoom' },
+  { value: 'wipe', label: 'Wipe' },
+  { value: 'mix', label: 'Mix' },
+];
 
 interface ClipProps {
   keepers: PhotoMeta[];
@@ -23,6 +31,15 @@ interface ClipProps {
 
 export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVideo, progress, onClose }: ClipProps) {
   const [length, setLength] = useState<(typeof LENGTHS)[number]['label']>('Medium');
+  const [transition, setTransition] = useState<ClipTransition>('fade');
+  useEffect(() => {
+    const stored = localStorage.getItem('picbook-clip-transition') as ClipTransition | null;
+    if (stored && TRANSITIONS.some((t) => t.value === stored)) setTransition(stored);
+  }, []);
+  const pickTransition = useCallback((t: ClipTransition) => {
+    setTransition(t);
+    localStorage.setItem('picbook-clip-transition', t);
+  }, []);
   const [video, setVideo] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,8 +54,8 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
 
   const plan = useMemo(() => {
     const target = LENGTHS.find((l) => l.label === length)?.photos ?? 40;
-    return planClip(keepers, Math.min(target, keepers.length), places, pinnedIds);
-  }, [keepers, length, places, pinnedIds]);
+    return { ...planClip(keepers, Math.min(target, keepers.length), places, pinnedIds), transition };
+  }, [keepers, length, places, pinnedIds, transition]);
   const seconds = useMemo(() => clipSeconds(plan), [plan]);
   const photoIds = useMemo(
     () => plan.segments.filter((s) => s.kind === 'photo').map((s) => (s.kind === 'photo' ? s.id : '')),
@@ -101,6 +118,23 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            <span className="shrink-0 text-xs text-neutral-500">Transition:</span>
+            {TRANSITIONS.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => pickTransition(t.value)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                  transition === t.value
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'border-neutral-500/40 text-neutral-500'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
           {videoUrl && (
             <video
               src={videoUrl}

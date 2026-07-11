@@ -70,9 +70,12 @@ export interface BookDoc {
 /** One timeline segment of the trip clip. */
 export type ClipSegment = { kind: 'title'; text: string; sub?: string } | { kind: 'photo'; id: string };
 
+export type ClipTransition = 'fade' | 'slide' | 'zoom' | 'wipe' | 'mix';
+
 export interface ClipPlan {
   segments: ClipSegment[];
   photoCount: number;
+  transition?: ClipTransition;
 }
 
 export type EngineRequest =
