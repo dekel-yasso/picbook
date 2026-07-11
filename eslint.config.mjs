@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Hand-rolled service worker: plain JS with worker globals.
+    "public/sw.js",
   ]),
 ]);
 
