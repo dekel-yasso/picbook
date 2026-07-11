@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { planBook } from '@/lib/engine/book';
 import { getDB } from '@/lib/engine/db';
 import type { BookPlan, PhotoMeta } from '@/lib/engine/types';
+import { PdfPreview } from './pdf-preview';
 import { Thumb } from './thumb';
 
 interface BookProps {
@@ -126,6 +127,8 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
               className="w-full"
             />
           </label>
+
+          {pdf && <PdfPreview file={pdf} />}
 
           {titled.chapters.map((c) => (
             <section key={c.key} className="flex flex-col gap-2">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clipSeconds, planClip } from '@/lib/engine/clip';
 import type { ClipPlan, PhotoMeta } from '@/lib/engine/types';
 import { Thumb } from './thumb';
@@ -25,6 +25,15 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
   const [length, setLength] = useState<(typeof LENGTHS)[number]['label']>('Medium');
   const [video, setVideo] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Inline playback of the rendered clip, before any share/save.
+  const videoUrl = useMemo(() => (video ? URL.createObjectURL(video) : null), [video]);
+  useEffect(
+    () => () => {
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+    },
+    [videoUrl],
+  );
 
   const plan = useMemo(() => {
     const target = LENGTHS.find((l) => l.label === length)?.photos ?? 40;
@@ -92,6 +101,15 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
               </button>
             ))}
           </div>
+          {videoUrl && (
+            <video
+              src={videoUrl}
+              controls
+              playsInline
+              className="w-full rounded-lg bg-black"
+              aria-label="Clip preview"
+            />
+          )}
           <p className="text-xs text-neutral-500">
             {plan.photoCount} photos in day order, with title cards, gentle motion, and crossfades.
             Square 1080p, silent — rendered entirely on this device.
