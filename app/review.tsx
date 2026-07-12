@@ -235,6 +235,10 @@ export function ReviewOverlay({
       )}
 
       <div
+        // The slide track is spatial, not textual: its translateX math assumes
+        // LTR pane order, so pin it regardless of UI language (RTL flipped the
+        // panes out of the viewport — black screen).
+        dir="ltr"
         className="relative flex-1 touch-none select-none overflow-hidden"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
