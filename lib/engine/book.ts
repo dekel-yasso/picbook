@@ -81,15 +81,29 @@ export function planBook(
   return { chapters, photoCount: chapters.reduce((n, c) => n + 1 + c.pages.reduce((m, p) => m + p.photoIds.length, 0), 0) };
 }
 
+// Every chapter gets at least this many photos when the budget allows —
+// a lonely hero page reads like an afterthought.
+const DAY_FLOOR = 3;
+
 /**
- * Split `target` across days proportionally to their photo counts, capped by
- * each day's count, with a minimum of 1 per day when the target is big enough.
+ * Split `target` across days by the SQUARE ROOT of their photo counts (big
+ * days lead, but 150-vs-6 becomes ~5:1 instead of 25:1), capped by each day's
+ * count, with a floor of DAY_FLOOR (falling back to 1) when the target allows.
  */
 function allocate(counts: number[], target: number): number[] {
-  const total = counts.reduce((a, b) => a + b, 0);
+  const weights = counts.map((c) => Math.sqrt(c));
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
   const quotas = counts.map(() => 0);
   let sum = 0;
-  if (target >= counts.length) {
+
+  const floors = counts.map((c) => Math.min(c, DAY_FLOOR));
+  const floorsSum = floors.reduce((a, b) => a + b, 0);
+  if (target >= floorsSum) {
+    for (let i = 0; i < counts.length; i++) {
+      quotas[i] = floors[i];
+      sum += floors[i];
+    }
+  } else if (target >= counts.length) {
     for (let i = 0; i < counts.length; i++) {
       if (counts[i] > 0) {
         quotas[i] = 1;
@@ -97,12 +111,13 @@ function allocate(counts: number[], target: number): number[] {
       }
     }
   }
+
   while (sum < target) {
     let best = -1;
     let bestDeficit = -Infinity;
     for (let i = 0; i < counts.length; i++) {
       if (quotas[i] >= counts[i]) continue;
-      const deficit = (counts[i] / total) * target - quotas[i];
+      const deficit = (weights[i] / totalWeight) * target - quotas[i];
       if (deficit > bestDeficit) {
         bestDeficit = deficit;
         best = i;
