@@ -111,8 +111,12 @@ const lerpCam = (a: Camera, b: Camera, f: number): Camera => ({
   span: Math.exp(lerp(Math.log(a.span), Math.log(b.span), f)), // zoom in log space
 });
 
-const SPAN_CLOSE = 0.045; // ~city-region view
-const SPAN_WIDE_MIN = 0.09;
+/** Inverse Web Mercator y → latitude (for graticule placement). */
+function invMercatorY(y: number): number {
+  return ((2 * Math.atan(Math.exp((0.5 - y) * 2 * Math.PI)) - Math.PI / 2) * 180) / Math.PI;
+}
+
+const clampNum = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 export interface MapSeg {
   from: GeoPoint | null;
@@ -137,21 +141,26 @@ export function drawMapFrame(
   ctx.fillRect(0, 0, size, size);
 
   const [tox, toy] = mercator(seg.to.lat, seg.to.lon);
-  const toCam: Camera = { cx: tox, cy: toy, span: SPAN_CLOSE };
 
   let cam: Camera;
   let arc: [number, number][] | null = null;
   if (!seg.from) {
     // Opening: wide view easing into the starting city.
     const wide: Camera = { cx: tox, cy: toy, span: 0.55 };
+    const toCam: Camera = { cx: tox, cy: toy, span: 0.05 };
     cam = lerpCam(wide, toCam, smooth(Math.min(1, p * 1.15)));
   } else {
+    // Distance-adaptive altitude: short hops fly low (real coastline detail),
+    // long hauls pull back to continents.
+    const dist = distanceKm(seg.from, seg.to);
+    const closeSpan = clampNum(0.006 + (dist / 9000) * 0.045, 0.007, 0.05);
     const [fx, fy] = mercator(seg.from.lat, seg.from.lon);
-    const fromCam: Camera = { cx: fx, cy: fy, span: SPAN_CLOSE };
+    const fromCam: Camera = { cx: fx, cy: fy, span: closeSpan };
+    const toCam: Camera = { cx: tox, cy: toy, span: closeSpan };
     const midCam: Camera = {
       cx: (fx + tox) / 2,
       cy: (fy + toy) / 2,
-      span: Math.min(1, Math.max(SPAN_WIDE_MIN, 1.7 * Math.max(Math.abs(tox - fx), Math.abs(toy - fy)))),
+      span: Math.min(1, Math.max(closeSpan * 1.9, 1.9 * Math.max(Math.abs(tox - fx), Math.abs(toy - fy)))),
     };
     cam =
       p < 0.45
@@ -167,11 +176,12 @@ export function drawMapFrame(
   const viewMinY = cam.cy - cam.span;
   const viewMaxY = cam.cy + cam.span;
 
-  // Landmasses (with world-wrap copies for antimeridian crossings)
+  // Landmasses (with world-wrap copies for antimeridian crossings) —
+  // clearly lighter than the water so coastlines read on small screens.
   if (land) {
-    ctx.fillStyle = '#1a222e';
-    ctx.strokeStyle = 'rgba(210,225,255,0.10)';
-    ctx.lineWidth = 1;
+    ctx.fillStyle = '#27333f';
+    ctx.strokeStyle = 'rgba(190,215,255,0.22)';
+    ctx.lineWidth = 1.2;
     ctx.lineJoin = 'round';
     for (const shift of [-1, 0, 1]) {
       for (let k = 0; k < land.polys.length; k++) {
@@ -188,14 +198,51 @@ export function drawMapFrame(
     }
   }
 
+  // Graticule: faint lat/lon grid — gives the camera visible motion even over
+  // featureless inland areas, and the classic flight-map texture.
+  {
+    const lonSpanDeg = cam.span * 360;
+    const steps = [0.25, 0.5, 1, 2, 5, 10, 20, 40];
+    const step = steps.find((s) => lonSpanDeg / s <= 9) ?? 40;
+    ctx.strokeStyle = 'rgba(170,195,230,0.07)';
+    ctx.lineWidth = 1;
+    const lonMin = (viewMinX - 0.5) * 360;
+    const lonMax = (viewMaxX - 0.5) * 360;
+    for (let lon = Math.ceil(lonMin / step) * step; lon <= lonMax; lon += step) {
+      const x = px(lon / 360 + 0.5);
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, size);
+      ctx.stroke();
+    }
+    const latMax = invMercatorY(viewMinY);
+    const latMin = invMercatorY(viewMaxY);
+    for (let lat = Math.ceil(latMin / step) * step; lat <= latMax; lat += step) {
+      const y = py(mercator(lat, 0)[1]);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y);
+      ctx.stroke();
+    }
+  }
+
+  // Edge vignette keeps the focus center-frame.
+  {
+    const v = ctx.createRadialGradient(size / 2, size / 2, size * 0.45, size / 2, size / 2, size * 0.75);
+    v.addColorStop(0, 'rgba(0,0,0,0)');
+    v.addColorStop(1, 'rgba(0,0,0,0.38)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, size, size);
+  }
+
   // Route arc drawing itself, with a glowing head
   if (arc) {
     const drawnUpTo = Math.max(0, Math.min(1, (p - 0.12) / 0.68));
     const count = Math.floor(drawnUpTo * (arc.length - 1));
     if (count > 0) {
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,205,110,0.85)';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(255,205,110,0.9)';
+      ctx.lineWidth = 4;
       ctx.lineCap = 'round';
       ctx.shadowColor = 'rgba(255,190,80,0.8)';
       ctx.shadowBlur = 12;
@@ -221,7 +268,7 @@ export function drawMapFrame(
   // City dots + labels
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  ctx.font = '600 34px system-ui, sans-serif';
+  ctx.font = '600 42px system-ui, sans-serif';
   if (seg.from) {
     const alpha = Math.max(0, 1 - p * 2.2);
     if (alpha > 0.01) {
