@@ -76,7 +76,18 @@ export interface BookDoc {
 }
 
 /** One timeline segment of the trip clip. */
-export type ClipSegment = { kind: 'title'; text: string; sub?: string } | { kind: 'photo'; id: string };
+export type ClipSegment =
+  | { kind: 'title'; text: string; sub?: string }
+  | { kind: 'photo'; id: string }
+  | {
+      kind: 'map';
+      /** null = the opening shot: wide view easing into the first city. */
+      from: { lat: number; lon: number } | null;
+      to: { lat: number; lon: number };
+      fromName?: string;
+      toName?: string;
+      duration: number;
+    };
 
 export type ClipTransition = 'fade' | 'slide' | 'zoom' | 'wipe' | 'mix';
 

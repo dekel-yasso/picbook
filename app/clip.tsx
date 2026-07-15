@@ -42,6 +42,14 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     setTransition(t);
     localStorage.setItem('picbook-clip-transition', t);
   }, []);
+  const [mapsOn, setMapsOn] = useState(true);
+  useEffect(() => setMapsOn(localStorage.getItem('picbook-clip-maps') !== '0'), []);
+  const toggleMaps = useCallback(() => {
+    setMapsOn((on) => {
+      localStorage.setItem('picbook-clip-maps', on ? '0' : '1');
+      return !on;
+    });
+  }, []);
   const [video, setVideo] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,8 +64,8 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
 
   const plan = useMemo(() => {
     const target = LENGTHS.find((l) => l.label === length)?.photos ?? 40;
-    return { ...planClip(keepers, Math.min(target, keepers.length), places, pinnedIds, lang), transition };
-  }, [keepers, length, places, pinnedIds, transition, lang]);
+    return { ...planClip(keepers, Math.min(target, keepers.length), places, pinnedIds, lang, mapsOn), transition };
+  }, [keepers, length, places, pinnedIds, transition, lang, mapsOn]);
   const seconds = useMemo(() => clipSeconds(plan), [plan]);
   const photoIds = useMemo(
     () => plan.segments.filter((s) => s.kind === 'photo').map((s) => (s.kind === 'photo' ? s.id : '')),
@@ -135,6 +143,16 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                 {tr.label === 'Fade' ? t('trFade') : tr.label === 'Slide' ? t('trSlide') : tr.label === 'Zoom' ? t('trZoom') : tr.label === 'Wipe' ? t('trWipe') : t('trMix')}
               </button>
             ))}
+            <button
+              onClick={toggleMaps}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                mapsOn
+                  ? 'border-foreground bg-foreground text-background'
+                  : 'border-neutral-500/40 text-neutral-500'
+              }`}
+            >
+              {t('mapTransitions')}
+            </button>
           </div>
 
           {videoUrl && (

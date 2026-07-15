@@ -129,6 +129,7 @@ export const STRINGS = {
     renderClip: 'Render clip',
     saveVideo: 'Save video ({size} MB)',
     clipPreview: 'Clip preview',
+    mapTransitions: '🗺 Map transitions',
     // account
     accountTitle: 'Account & sync',
     signedInAs: 'Signed in as',
@@ -234,6 +235,7 @@ export const STRINGS = {
     renderClip: 'יצירת קליפ',
     saveVideo: 'שמירת וידאו ‏({size} MB)',
     clipPreview: 'תצוגה מקדימה של הקליפ',
+    mapTransitions: '🗺 מעברי מפה',
     accountTitle: 'חשבון וסנכרון',
     signedInAs: 'מחובר בתור',
     syncBody:

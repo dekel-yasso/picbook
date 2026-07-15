@@ -5,6 +5,7 @@
 import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
 import { planBook } from './book';
 import { getDB } from './db';
+import { distanceKm, drawMapFrame, loadLand, type GeoPoint } from './geo';
 import { asBlob } from './images';
 import type { ClipPlan, ClipSegment, ClipTransition, EngineEvent, PhotoMeta } from './types';
 
@@ -17,20 +18,53 @@ const BITRATE = 5_000_000;
 // Enough resolution for 1080 output; renditions (2048px) downscale, thumbs upscale soft.
 const DECODE_MAX = 1600;
 
-/** Reuses the book planner: same day structure, quotas, titles, and pins. */
+// A day counts as "moved" when its median location shifts more than this.
+const MOVE_KM = 25;
+
+/** Reuses the book planner: same day structure, quotas, titles, and pins.
+ *  With maps on, travel days get a flight-map segment before their title. */
 export function planClip(
   keepers: PhotoMeta[],
   target: number,
   places?: Map<string, string>,
   pinnedIds?: Set<string>,
   lang?: import('../i18n-strings').Lang,
+  withMaps = true,
 ): ClipPlan {
   const book = planBook(keepers, target, places, pinnedIds, lang);
+  const byId = new Map(keepers.map((p) => [p.id, p]));
   const segments: ClipSegment[] = [];
   let photoCount = 0;
+  let prevLoc: GeoPoint | null = null;
+  let prevName: string | undefined;
+  let isFirstLocated = true;
+
   for (const chapter of book.chapters) {
+    const ids = [chapter.heroId, ...chapter.pages.flatMap((p) => p.photoIds)];
+    const loc = medianLocation(ids.map((id) => byId.get(id)).filter((p): p is PhotoMeta => !!p));
+    const name = places?.get(chapter.key);
+
+    if (withMaps && loc) {
+      if (isFirstLocated) {
+        segments.push({ kind: 'map', from: null, to: loc, toName: name, duration: 2.6 });
+        isFirstLocated = false;
+      } else if (prevLoc && distanceKm(prevLoc, loc) > MOVE_KM) {
+        const dist = distanceKm(prevLoc, loc);
+        segments.push({
+          kind: 'map',
+          from: prevLoc,
+          to: loc,
+          fromName: prevName,
+          toName: name,
+          duration: 2.4 + Math.min(1.4, (dist / 4000) * 1.4),
+        });
+      }
+      prevLoc = loc;
+      prevName = name;
+    }
+
     segments.push({ kind: 'title', text: chapter.title, sub: chapter.caption });
-    for (const id of [chapter.heroId, ...chapter.pages.flatMap((p) => p.photoIds)]) {
+    for (const id of ids) {
       segments.push({ kind: 'photo', id });
       photoCount++;
     }
@@ -38,10 +72,20 @@ export function planClip(
   return { segments, photoCount };
 }
 
+function medianLocation(photos: PhotoMeta[]): GeoPoint | null {
+  const pts = photos.filter((p) => p.gps);
+  if (!pts.length) return null;
+  const lats = pts.map((p) => p.gps!.lat).sort((a, b) => a - b);
+  const lons = pts.map((p) => p.gps!.lon).sort((a, b) => a - b);
+  return { lat: lats[Math.floor(lats.length / 2)], lon: lons[Math.floor(lons.length / 2)] };
+}
+
+function segSeconds(seg: ClipSegment): number {
+  return seg.kind === 'title' ? TITLE_S : seg.kind === 'map' ? seg.duration : PHOTO_S;
+}
+
 export function clipSeconds(plan: ClipPlan): number {
-  return Math.round(
-    plan.segments.reduce((s, seg) => s + (seg.kind === 'title' ? TITLE_S : PHOTO_S) - FADE_S, FADE_S),
-  );
+  return Math.round(plan.segments.reduce((s, seg) => s + segSeconds(seg) - FADE_S, FADE_S));
 }
 
 interface Timed {
@@ -60,12 +104,14 @@ export async function renderClip(
   }
   const codec = await pickCodec();
   const db = await getDB();
+  // Land silhouettes for map segments (cached after first fetch; null offline).
+  const land = plan.segments.some((s) => s.kind === 'map') ? await loadLand() : null;
 
   // Timeline with FADE_S overlap between consecutive segments.
   const timeline: Timed[] = [];
   let clock = 0;
   for (const seg of plan.segments) {
-    const duration = seg.kind === 'title' ? TITLE_S : PHOTO_S;
+    const duration = segSeconds(seg);
     timeline.push({ seg, start: clock, duration });
     clock += duration - FADE_S;
   }
@@ -134,6 +180,8 @@ export async function renderClip(
     ctx.globalAlpha = alpha;
     if (seg.kind === 'title') {
       drawTitleCard(ctx, seg);
+    } else if (seg.kind === 'map') {
+      drawMapFrame(ctx, SIZE, land, seg, Math.max(0, Math.min(1, t / duration)));
     } else {
       await ensureBitmap(idx);
       const bmp = bitmaps.get(idx);
