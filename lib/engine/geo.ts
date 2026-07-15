@@ -135,8 +135,8 @@ export function drawMapFrame(
 ) {
   // Background
   const bg = ctx.createLinearGradient(0, 0, 0, size);
-  bg.addColorStop(0, '#0a0d13');
-  bg.addColorStop(1, '#131924');
+  bg.addColorStop(0, '#070a10');
+  bg.addColorStop(1, '#0e141d');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, size, size);
 
@@ -179,8 +179,8 @@ export function drawMapFrame(
   // Landmasses (with world-wrap copies for antimeridian crossings) —
   // clearly lighter than the water so coastlines read on small screens.
   if (land) {
-    ctx.fillStyle = '#27333f';
-    ctx.strokeStyle = 'rgba(190,215,255,0.22)';
+    ctx.fillStyle = '#41526a';
+    ctx.strokeStyle = 'rgba(200,220,255,0.35)';
     ctx.lineWidth = 1.2;
     ctx.lineJoin = 'round';
     for (const shift of [-1, 0, 1]) {
