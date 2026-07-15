@@ -53,6 +53,8 @@ export const STRINGS = {
     newTrip: '＋ New trip…',
     renameTrip: 'Rename trip',
     deleteTrip: 'Delete trip',
+    deleteDay: 'Delete this day',
+    deleteDayConfirm: 'Delete all {n} photos from {day}?\n\nYour originals in the camera roll are not touched.',
     syncBtn: '☁ Sync',
     tripNamePrompt: 'Trip name',
     deleteTripConfirm:
@@ -166,6 +168,8 @@ export const STRINGS = {
     newTrip: '＋ טיול חדש…',
     renameTrip: 'שינוי שם',
     deleteTrip: 'מחיקת טיול',
+    deleteDay: 'מחיקת היום הזה',
+    deleteDayConfirm: 'למחוק את כל {n} התמונות מ‑{day}?\n\nהמקורות בגלריה לא נמחקים.',
     syncBtn: '☁ סנכרון',
     tripNamePrompt: 'שם הטיול',
     deleteTripConfirm: 'למחוק את "{name}" ואת {n} התמונות שבו מ‑PicBook?\n\nהמקורות בגלריה לא נמחקים.',

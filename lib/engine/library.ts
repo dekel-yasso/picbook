@@ -6,12 +6,20 @@ import { DEFAULT_TRIP_ID } from './trips';
 
 /** Remove a photo and everything derived from it. */
 export async function deletePhoto(id: string): Promise<void> {
+  await deletePhotos([id]);
+}
+
+/** Remove many photos (and their thumbs/renditions/decisions) in one transaction. */
+export async function deletePhotos(ids: string[]): Promise<void> {
+  if (!ids.length) return;
   const db = await getDB();
   const tx = db.transaction(['photos', 'thumbs', 'renditions', 'decisions'], 'readwrite');
-  tx.objectStore('photos').delete(id);
-  tx.objectStore('thumbs').delete(id);
-  tx.objectStore('renditions').delete(id);
-  tx.objectStore('decisions').delete(id);
+  for (const id of ids) {
+    tx.objectStore('photos').delete(id);
+    tx.objectStore('thumbs').delete(id);
+    tx.objectStore('renditions').delete(id);
+    tx.objectStore('decisions').delete(id);
+  }
   await tx.done;
 }
 

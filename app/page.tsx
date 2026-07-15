@@ -6,7 +6,7 @@ import { getDB } from '@/lib/engine/db';
 import { loadDecisions, saveDecision } from '@/lib/engine/decisions';
 import { placeForPhotos } from '@/lib/engine/geocode';
 import { FACES_VERSION } from '@/lib/engine/faces';
-import { deletePhoto, deleteTrip } from '@/lib/engine/library';
+import { deletePhoto, deletePhotos, deleteTrip } from '@/lib/engine/library';
 import { pickDirectory, pickFiles, supportsDirectoryPicker } from '@/lib/engine/photoSource';
 import { deleteTripRemote, syncNow, whoami } from '@/lib/engine/sync';
 import { createTrip, DEFAULT_TRIP_ID, loadTrips, renameTrip } from '@/lib/engine/trips';
@@ -143,6 +143,23 @@ export default function Home() {
       });
     },
     [forgetPhotos],
+  );
+
+  // Bulk-remove a whole day (e.g. photos accidentally imported from another trip).
+  const removeDay = useCallback(
+    async (label: string, dayClusters: Cluster[]) => {
+      const ids = dayClusters.flatMap((c) => c.photos.map((p) => p.id));
+      if (!ids.length) return;
+      if (!window.confirm(t('deleteDayConfirm', { n: ids.length, day: label }))) return;
+      await deletePhotos(ids);
+      forgetPhotos(ids);
+      setDecisions((prev) => {
+        const next = new Map(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+    },
+    [forgetPhotos, t],
   );
 
   const addPhotos = useCallback(async () => {
@@ -582,17 +599,27 @@ export default function Home() {
             if (cells && cells.length === 0) return null;
             return (
               <section key={label} className="flex flex-col gap-2">
-                <h2 className="text-sm font-medium text-neutral-500">
-                  {new Date(label).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
-                    weekday: 'short',
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                  {places.get(label) && (
-                    <span className="text-neutral-400"> — {places.get(label)}</span>
-                  )}
-                </h2>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-medium text-neutral-500">
+                    {new Date(label).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                    {places.get(label) && (
+                      <span className="text-neutral-400"> — {places.get(label)}</span>
+                    )}
+                  </h2>
+                  <button
+                    onClick={() => removeDay(label, dayClusters)}
+                    aria-label={t('deleteDay')}
+                    title={t('deleteDay')}
+                    className="shrink-0 rounded-lg px-2 py-1 text-xs text-neutral-500/70"
+                  >
+                    🗑
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {cells
                     ? cells.map(({ cluster, photo }) => (
