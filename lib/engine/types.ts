@@ -16,6 +16,8 @@ export interface PhotoMeta {
   /** Epoch ms from EXIF DateTimeOriginal/CreateDate; null if the photo has no date. */
   takenAt: number | null;
   gps: { lat: number; lon: number } | null;
+  /** GPS-extraction version; older photos re-parse EXIF when re-imported. */
+  gpsv?: number;
   thumbWidth: number;
   thumbHeight: number;
   status: 'ready' | 'unsupported';

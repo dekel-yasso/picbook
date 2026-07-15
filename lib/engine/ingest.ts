@@ -7,14 +7,21 @@ const THUMB_MAX = 512;
 // 1–1.5GB, and a single 48MP decode is ~192MB.
 const BATCH = 2;
 
+// The Ref tags are essential: without GPSLongitudeRef ("W" = negative), every
+// western-hemisphere photo gets mirrored east (Boston → Kyrgyzstan).
 const EXIF_TAGS = [
   'DateTimeOriginal',
   'CreateDate',
   'GPSLatitude',
   'GPSLongitude',
+  'GPSLatitudeRef',
+  'GPSLongitudeRef',
   'ExifImageWidth',
   'ExifImageHeight',
 ];
+
+/** Bump when EXIF/GPS extraction improves; cached photos re-parse on re-import. */
+const GPS_VERSION = 2;
 
 export async function ingest(
   files: File[],
@@ -44,10 +51,25 @@ export async function ingest(
     if (cached) {
       // Re-importing into a different trip moves the photo there (a photo lives
       // in exactly one trip — the one it was most recently imported to).
-      if ((cached.tripId ?? 'default') !== tripId) {
-        cached.tripId = tripId;
-        await db.put('photos', cached, id);
+      let dirty = (cached.tripId ?? 'default') !== tripId;
+      if (dirty) cached.tripId = tripId;
+      // Photos ingested by older GPS extraction re-parse EXIF (cheap — no
+      // decode) so bad coordinates heal on re-import.
+      if ((cached.gpsv ?? 1) < GPS_VERSION) {
+        try {
+          const exif = await exifr.parse(file, EXIF_TAGS);
+          const dt: unknown = exif?.DateTimeOriginal ?? exif?.CreateDate;
+          if (dt instanceof Date && !Number.isNaN(dt.getTime())) cached.takenAt = dt.getTime();
+          if (typeof exif?.latitude === 'number' && typeof exif?.longitude === 'number') {
+            cached.gps = { lat: exif.latitude, lon: exif.longitude };
+          }
+        } catch {
+          // keep whatever we had
+        }
+        cached.gpsv = GPS_VERSION;
+        dirty = true;
       }
+      if (dirty) await db.put('photos', cached, id);
       return cached;
     }
 
@@ -84,6 +106,7 @@ export async function ingest(
       lastModified: file.lastModified,
       takenAt,
       gps,
+      gpsv: GPS_VERSION,
       addedAt: Date.now(),
     };
 
