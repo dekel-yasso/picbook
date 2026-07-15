@@ -264,7 +264,14 @@ export default function Home() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run when the day set changes, not when places fills in
   }, [days, lang]);
-  useEffect(() => setPlaces(new Map()), [lang]);
+  // Re-geocode when any photo's coordinates change (e.g. the GPS healing
+  // pass on re-import) — otherwise stale place names linger until relaunch.
+  const gpsSignature = useMemo(() => {
+    let sig = 0;
+    for (const p of tripPhotos) if (p.gps) sig += p.gps.lat + p.gps.lon;
+    return Math.round(sig * 1000);
+  }, [tripPhotos]);
+  useEffect(() => setPlaces(new Map()), [lang, gpsSignature]);
 
   const themes = useMemo(() => {
     const counts = new Map<string, number>();
