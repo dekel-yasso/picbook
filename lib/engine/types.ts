@@ -105,7 +105,13 @@ export type EngineRequest =
   | { type: 'embed' }
   | { type: 'renditions'; items: [string, File][] }
   | { type: 'book'; plan: BookPlan; files: [string, File][] }
-  | { type: 'clip'; plan: ClipPlan; files: [string, File][] };
+  | {
+      type: 'clip';
+      plan: ClipPlan;
+      files: [string, File][];
+      /** Decoded PCM for the soundtrack (planar channels); absent = silent. */
+      audio?: { channels: Float32Array[]; sampleRate: number };
+    };
 
 export type EngineEvent =
   | { type: 'photo'; meta: PhotoMeta; done: number; total: number }

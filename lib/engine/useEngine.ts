@@ -220,18 +220,28 @@ export function useEngine() {
     });
   }, []);
 
-  const renderClipVideo = useCallback((plan: ClipPlan, files: Map<string, File>) => {
-    return new Promise<Uint8Array>((resolve, reject) => {
-      const worker = workerRef.current;
-      if (!worker) {
-        reject(new Error('engine not ready'));
-        return;
-      }
-      clipResolver.current = { resolve, reject };
-      setClipProgress({ done: 0, total: 0, running: true });
-      worker.postMessage({ type: 'clip', plan, files: [...files] } satisfies EngineRequest);
-    });
-  }, []);
+  const renderClipVideo = useCallback(
+    (
+      plan: ClipPlan,
+      files: Map<string, File>,
+      audio?: { channels: Float32Array[]; sampleRate: number },
+    ) => {
+      return new Promise<Uint8Array>((resolve, reject) => {
+        const worker = workerRef.current;
+        if (!worker) {
+          reject(new Error('engine not ready'));
+          return;
+        }
+        clipResolver.current = { resolve, reject };
+        setClipProgress({ done: 0, total: 0, running: true });
+        worker.postMessage(
+          { type: 'clip', plan, files: [...files], audio } satisfies EngineRequest,
+          audio ? audio.channels.map((c) => c.buffer) : [],
+        );
+      });
+    },
+    [],
+  );
 
   return {
     photos,

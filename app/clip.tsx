@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clipSeconds, planClip } from '@/lib/engine/clip';
 import type { ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
@@ -11,6 +11,9 @@ const LENGTHS = [
   { label: 'Medium', photos: 40 },
   { label: 'Long', photos: 60 },
 ] as const;
+
+type MusicKey = 'none' | 'upbeat' | 'calm' | 'cinematic';
+const MUSIC: MusicKey[] = ['none', 'upbeat', 'calm', 'cinematic'];
 
 const TRANSITIONS: { value: ClipTransition; label: string }[] = [
   { value: 'fade', label: 'Fade' },
@@ -25,7 +28,11 @@ interface ClipProps {
   pinnedIds: Set<string>;
   places: Map<string, string>;
   getFile: (id: string) => File | undefined;
-  renderClipVideo: (plan: ClipPlan, files: Map<string, File>) => Promise<Uint8Array>;
+  renderClipVideo: (
+    plan: ClipPlan,
+    files: Map<string, File>,
+    audio?: { channels: Float32Array[]; sampleRate: number },
+  ) => Promise<Uint8Array>;
   progress: { done: number; total: number; running: boolean };
   onClose: () => void;
 }
@@ -42,6 +49,17 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     setTransition(t);
     localStorage.setItem('picbook-clip-transition', t);
   }, []);
+  const [music, setMusic] = useState<MusicKey>('upbeat');
+  useEffect(() => {
+    const stored = localStorage.getItem('picbook-clip-music') as MusicKey | null;
+    if (stored && MUSIC.includes(stored)) setMusic(stored);
+  }, []);
+  const pickMusic = useCallback((m: MusicKey) => {
+    setMusic(m);
+    localStorage.setItem('picbook-clip-music', m);
+  }, []);
+  // Decoded PCM per track, cached for re-renders within this session.
+  const audioCache = useRef<Map<string, { channels: Float32Array[]; sampleRate: number }>>(new Map());
   const [mapsOn, setMapsOn] = useState(true);
   useEffect(() => setMapsOn(localStorage.getItem('picbook-clip-maps') !== '0'), []);
   const toggleMaps = useCallback(() => {
@@ -80,13 +98,41 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       const f = getFile(id);
       if (f) files.set(id, f);
     }
+    let audio: { channels: Float32Array[]; sampleRate: number } | undefined;
+    if (music !== 'none') {
+      try {
+        let decoded = audioCache.current.get(music);
+        if (!decoded) {
+          const buf = await fetch(`/music/${music}.mp3`).then((r) => {
+            if (!r.ok) throw new Error('music fetch failed');
+            return r.arrayBuffer();
+          });
+          const actx = new AudioContext();
+          const ab = await actx.decodeAudioData(buf);
+          await actx.close();
+          decoded = {
+            channels: Array.from({ length: ab.numberOfChannels }, (_, i) => ab.getChannelData(i)),
+            sampleRate: ab.sampleRate,
+          };
+          audioCache.current.set(music, decoded);
+        }
+        // Transfer only what the clip needs (buffers are moved to the worker).
+        const need = Math.min(
+          decoded.channels[0].length,
+          Math.ceil((clipSeconds(plan) + 2) * decoded.sampleRate),
+        );
+        audio = { channels: decoded.channels.map((c) => c.slice(0, need)), sampleRate: decoded.sampleRate };
+      } catch {
+        audio = undefined; // offline / unsupported → silent clip
+      }
+    }
     try {
-      const bytes = await renderClipVideo(plan, files);
+      const bytes = await renderClipVideo(plan, files, audio);
       setVideo(new File([new Uint8Array(bytes)], 'picbook-clip.mp4', { type: 'video/mp4' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [plan, photoIds, getFile, renderClipVideo]);
+  }, [plan, photoIds, getFile, renderClipVideo, music]);
 
   // Kept synchronous inside the tap's user activation so iOS allows share().
   const save = useCallback(() => {
@@ -153,6 +199,23 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             >
               {t('mapTransitions')}
             </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            <span className="shrink-0 text-xs text-neutral-500">{t('music')}</span>
+            {MUSIC.map((m) => (
+              <button
+                key={m}
+                onClick={() => pickMusic(m)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                  music === m
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'border-neutral-500/40 text-neutral-500'
+                }`}
+              >
+                {m === 'none' ? t('musicNone') : m === 'upbeat' ? t('musicUpbeat') : m === 'calm' ? t('musicCalm') : t('musicCinematic')}
+              </button>
+            ))}
           </div>
 
           {videoUrl && (
