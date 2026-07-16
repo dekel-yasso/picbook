@@ -93,5 +93,21 @@ export async function encodeSoundtrack(
     return null;
   }
   if (failed || out.chunks.length === 0) return null;
+  // Safari's encoder may omit decoderConfig.description; without an
+  // AudioSpecificConfig in the mp4's esds box, iOS players won't decode the
+  // track (Chrome tolerates it). Synthesize the 2-byte AAC-LC config.
+  if (!out.description) out.description = audioSpecificConfig(sampleRate, ch);
   return out;
+}
+
+const AAC_FREQ_INDEX: Record<number, number> = {
+  96000: 0, 88200: 1, 64000: 2, 48000: 3, 44100: 4, 32000: 5,
+  24000: 6, 22050: 7, 16000: 8, 12000: 9, 11025: 10, 8000: 11,
+};
+
+function audioSpecificConfig(sampleRate: number, channels: number): Uint8Array {
+  const freqIndex = AAC_FREQ_INDEX[sampleRate] ?? 4;
+  // 5 bits object type (2 = AAC-LC) · 4 bits freq index · 4 bits channels · 3 bits zero
+  const bits = (2 << 11) | (freqIndex << 7) | (channels << 3);
+  return new Uint8Array([bits >> 8, bits & 0xff]);
 }

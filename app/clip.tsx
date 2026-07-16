@@ -71,6 +71,9 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
   }, []);
   const [video, setVideo] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Per-stage soundtrack trace, shown after rendering so device-specific
+  // failures are visible instead of silent.
+  const [musicDiag, setMusicDiag] = useState<string | null>(null);
 
   // Inline playback of the rendered clip, before any share/save.
   const videoUrl = useMemo(() => (video ? URL.createObjectURL(video) : null), [video]);
@@ -100,14 +103,17 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       if (f) files.set(id, f);
     }
     let sound: EncodedSound | undefined;
+    setMusicDiag(null);
     if (music !== 'none') {
+      const diag: string[] = [`♪ ${music}`];
       try {
         let decoded = audioCache.current.get(music);
         if (!decoded) {
           const buf = await fetch(`/music/${music}.mp3`).then((r) => {
-            if (!r.ok) throw new Error('music fetch failed');
+            if (!r.ok) throw new Error(`fetch ${r.status}`);
             return r.arrayBuffer();
           });
+          diag.push(`fetch ${(buf.byteLength / 1e6).toFixed(1)}MB`);
           const actx = new AudioContext();
           const ab = await actx.decodeAudioData(buf);
           await actx.close();
@@ -116,14 +122,24 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             sampleRate: ab.sampleRate,
           };
           audioCache.current.set(music, decoded);
+        } else {
+          diag.push('cached');
         }
+        diag.push(`decoded ${Math.round(decoded.channels[0].length / decoded.sampleRate)}s@${decoded.sampleRate}`);
         // AAC-encode here on the page — WebKit lacks AudioEncoder in workers.
         sound =
           (await encodeSoundtrack(decoded.channels, decoded.sampleRate, clipSeconds(plan))) ??
           undefined;
-      } catch {
+        diag.push(
+          sound
+            ? `encoded ${sound.chunks.length} chunks, desc ${sound.description?.byteLength ?? 0}B`
+            : `encode failed (AudioEncoder: ${typeof AudioEncoder !== 'undefined' ? 'yes' : 'no'})`,
+        );
+      } catch (e) {
+        diag.push(`✗ ${e instanceof Error ? e.message : String(e)}`);
         sound = undefined;
       }
+      setMusicDiag(diag.join(' · '));
       if (!sound) setError(t('musicFailed'));
     }
     try {
@@ -249,6 +265,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             </div>
           )}
           {error && <p className="text-xs text-red-500">{error}</p>}
+          {musicDiag && <p className="text-[10px] text-neutral-400">{musicDiag}</p>}
           <div className="flex gap-2">
             <button
               onClick={generate}
