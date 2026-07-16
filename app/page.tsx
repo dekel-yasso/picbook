@@ -51,6 +51,18 @@ export default function Home() {
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
 
+  // Collapsed day sections — faster navigation through huge trips. Collapsed
+  // days render no thumbnails at all, which also lightens the page.
+  const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set());
+  const toggleDay = useCallback((label: string) => {
+    setCollapsedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }, []);
+
   // Smart grouping (on-device CLIP) is opt-in: ~85MB one-time model download.
   const [clipEnabled, setClipEnabled] = useState(false);
   useEffect(() => setClipEnabled(localStorage.getItem('picbook-clip') === '1'), []);
@@ -89,6 +101,8 @@ export default function Home() {
       if (stored && all.some((t) => t.id === stored)) setActiveTripId(stored);
     });
   }, []);
+  // Day labels are date strings and can collide across trips — start fresh.
+  useEffect(() => setCollapsedDays(new Set()), [activeTripId]);
   const switchTrip = useCallback(async (value: string) => {
     if (value === '__new') {
       const name = window.prompt(t('tripNamePrompt'));
@@ -597,20 +611,38 @@ export default function Home() {
                   )
                 : null;
             if (cells && cells.length === 0) return null;
+            const collapsed = collapsedDays.has(label);
+            const dayCount = cells
+              ? cells.length
+              : dayClusters.reduce((n, c) => n + c.photos.length, 0);
             return (
               <section key={label} className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-medium text-neutral-500">
-                    {new Date(label).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
-                      weekday: 'short',
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })}
-                    {places.get(label) && (
-                      <span className="text-neutral-400"> — {places.get(label)}</span>
+                  <button
+                    onClick={() => toggleDay(label)}
+                    aria-expanded={!collapsed}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-start"
+                  >
+                    <span className="shrink-0 text-xs text-neutral-400">
+                      {collapsed ? (lang === 'he' ? '◂' : '▸') : '▾'}
+                    </span>
+                    <h2 className="truncate text-sm font-medium text-neutral-500">
+                      {new Date(label).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                      {places.get(label) && (
+                        <span className="text-neutral-400"> — {places.get(label)}</span>
+                      )}
+                    </h2>
+                    {collapsed && (
+                      <span className="shrink-0 text-xs text-neutral-400">
+                        · {t('dayPhotos', { n: dayCount })}
+                      </span>
                     )}
-                  </h2>
+                  </button>
                   <button
                     onClick={() => removeDay(label, dayClusters)}
                     aria-label={t('deleteDay')}
@@ -620,6 +652,7 @@ export default function Home() {
                     🗑
                   </button>
                 </div>
+                {!collapsed && (
                 <div className="flex flex-wrap gap-1.5">
                   {cells
                     ? cells.map(({ cluster, photo }) => (
@@ -661,6 +694,7 @@ export default function Home() {
                         ),
                       )}
                 </div>
+                )}
               </section>
             );
           })}
