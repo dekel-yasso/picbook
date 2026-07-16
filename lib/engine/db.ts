@@ -12,6 +12,8 @@ interface PicBookDB extends DBSchema {
   /** Reverse-geocode cache: "lat,lon" (2dp) → place name ('' = looked up, nothing found). */
   geo: { key: string; value: string };
   trips: { key: string; value: Trip };
+  /** Small user media, e.g. the custom clip soundtrack. */
+  media: { key: string; value: { blob: Blob; name: string } };
 }
 
 let dbPromise: Promise<IDBPDatabase<PicBookDB>> | null = null;
@@ -19,7 +21,7 @@ let dbPromise: Promise<IDBPDatabase<PicBookDB>> | null = null;
 export function getDB(): Promise<IDBPDatabase<PicBookDB>> {
   if (!dbPromise) {
     let instance: IDBPDatabase<PicBookDB> | null = null;
-    dbPromise = openDB<PicBookDB>('picbook', 5, {
+    dbPromise = openDB<PicBookDB>('picbook', 6, {
       // Another PicBook context (e.g. the home-screen app vs the Safari tab)
       // needs a newer schema: close our connection so it isn't blocked forever.
       // The next getDB() call here reconnects at the new version.
@@ -48,6 +50,9 @@ export function getDB(): Promise<IDBPDatabase<PicBookDB>> {
         }
         if (oldVersion < 5) {
           db.createObjectStore('trips');
+        }
+        if (oldVersion < 6) {
+          db.createObjectStore('media');
         }
       },
     }).then((db) => {

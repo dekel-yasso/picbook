@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { encodeSoundtrack, type EncodedSound } from '@/lib/engine/audio';
 import { clipSeconds, planClip } from '@/lib/engine/clip';
+import { getDB } from '@/lib/engine/db';
 import type { ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
 import { Thumb } from './thumb';
@@ -13,8 +14,10 @@ const LENGTHS = [
   { label: 'Long', photos: 60 },
 ] as const;
 
-type MusicKey = 'none' | 'upbeat' | 'calm' | 'cinematic';
+type MusicKey = 'none' | 'upbeat' | 'calm' | 'cinematic' | 'custom';
 const MUSIC: MusicKey[] = ['none', 'upbeat', 'calm', 'cinematic'];
+// Cap the decoded PCM we keep around for long custom songs (clips are ≤ ~2.5min).
+const CUSTOM_CACHE_SECONDS = 160;
 
 const TRANSITIONS: { value: ClipTransition; label: string }[] = [
   { value: 'fade', label: 'Fade' },
@@ -59,6 +62,29 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     setMusic(m);
     localStorage.setItem('picbook-clip-music', m);
   }, []);
+  const [customName, setCustomName] = useState<string | null>(null);
+  useEffect(() => setCustomName(localStorage.getItem('picbook-clip-custom-name')), []);
+  // Pick an audio file from the device; persisted in IndexedDB for next time.
+  const pickCustom = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'audio/*,.mp3,.m4a,.aac,.wav';
+    input.style.display = 'none';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (!file) return;
+      const db = await getDB();
+      await db.put('media', { blob: file, name: file.name }, 'clip-soundtrack');
+      audioCache.current.delete('custom');
+      localStorage.setItem('picbook-clip-custom-name', file.name);
+      setCustomName(file.name);
+      pickMusic('custom');
+    };
+    input.oncancel = () => input.remove();
+    document.body.appendChild(input);
+    input.click();
+  }, [pickMusic]);
   // Decoded PCM per track, cached for re-renders within this session.
   const audioCache = useRef<Map<string, { channels: Float32Array[]; sampleRate: number }>>(new Map());
   const [mapsOn, setMapsOn] = useState(true);
@@ -105,20 +131,30 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     let sound: EncodedSound | undefined;
     setMusicDiag(null);
     if (music !== 'none') {
-      const diag: string[] = [`♪ ${music}`];
+      const diag: string[] = [`♪ ${music === 'custom' ? (customName ?? 'custom') : music}`];
       try {
         let decoded = audioCache.current.get(music);
         if (!decoded) {
-          const buf = await fetch(`/music/${music}.mp3`).then((r) => {
-            if (!r.ok) throw new Error(`fetch ${r.status}`);
-            return r.arrayBuffer();
-          });
+          let buf: ArrayBuffer;
+          if (music === 'custom') {
+            const stored = await (await getDB()).get('media', 'clip-soundtrack');
+            if (!stored) throw new Error('no custom track');
+            buf = await stored.blob.arrayBuffer();
+          } else {
+            buf = await fetch(`/music/${music}.mp3`).then((r) => {
+              if (!r.ok) throw new Error(`fetch ${r.status}`);
+              return r.arrayBuffer();
+            });
+          }
           diag.push(`fetch ${(buf.byteLength / 1e6).toFixed(1)}MB`);
           const actx = new AudioContext();
           const ab = await actx.decodeAudioData(buf);
           await actx.close();
+          const keep = Math.min(ab.length, Math.round(CUSTOM_CACHE_SECONDS * ab.sampleRate));
           decoded = {
-            channels: Array.from({ length: ab.numberOfChannels }, (_, i) => ab.getChannelData(i)),
+            channels: Array.from({ length: ab.numberOfChannels }, (_, i) =>
+              ab.getChannelData(i).slice(0, keep),
+            ),
             sampleRate: ab.sampleRate,
           };
           audioCache.current.set(music, decoded);
@@ -232,6 +268,18 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                 {m === 'none' ? t('musicNone') : m === 'upbeat' ? t('musicUpbeat') : m === 'calm' ? t('musicCalm') : t('musicCinematic')}
               </button>
             ))}
+            <button
+              onClick={pickCustom}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                music === 'custom'
+                  ? 'border-foreground bg-foreground text-background'
+                  : 'border-neutral-500/40 text-neutral-500'
+              }`}
+            >
+              {music === 'custom' && customName
+                ? `🎵 ${customName.length > 18 ? customName.slice(0, 16) + '…' : customName}`
+                : t('musicCustom')}
+            </button>
           </div>
 
           {videoUrl && (

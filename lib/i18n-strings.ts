@@ -138,6 +138,7 @@ export const STRINGS = {
     musicUpbeat: 'Upbeat',
     musicCalm: 'Calm',
     musicCinematic: 'Cinematic',
+    musicCustom: '🎵 Your track…',
     musicFailed: '⚠ The music track could not be included — the clip was rendered silent. Try re-rendering.',
     // account
     accountTitle: 'Account & sync',
@@ -253,6 +254,7 @@ export const STRINGS = {
     musicUpbeat: 'קצבי',
     musicCalm: 'רגוע',
     musicCinematic: 'קולנועי',
+    musicCustom: '🎵 קובץ משלכם…',
     musicFailed: '⚠ לא הצלחנו לכלול את המוזיקה — הקליפ נוצר ללא קול. נסו ליצור שוב.',
     accountTitle: 'חשבון וסנכרון',
     signedInAs: 'מחובר בתור',
