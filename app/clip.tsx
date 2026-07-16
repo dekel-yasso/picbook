@@ -14,8 +14,20 @@ const LENGTHS = [
   { label: 'Long', photos: 60 },
 ] as const;
 
-type MusicKey = 'none' | 'upbeat' | 'calm' | 'cinematic' | 'custom';
-const MUSIC: MusicKey[] = ['none', 'upbeat', 'calm', 'cinematic'];
+// Built-in soundtrack library: public-domain recordings (Musopen), trimmed to
+// ~2min in public/music/. Keys double as filenames.
+const TRACKS = [
+  { key: 'morning', en: 'Grieg — Morning', he: 'גריג — בוקר' },
+  { key: 'italian', en: 'Mendelssohn — Italian Symphony', he: 'מנדלסון — הסימפוניה האיטלקית' },
+  { key: 'figaro', en: 'Mozart — Figaro Overture', he: 'מוצרט — פתיחת פיגארו' },
+  { key: 'vltava', en: 'Smetana — The Moldau', he: 'סמטנה — המולדבה' },
+  { key: 'mountainking', en: 'Grieg — Mountain King', he: 'גריג — מלך ההר' },
+  { key: 'goldberg', en: 'Bach — Goldberg Variation', he: 'באך — וריאציית גולדברג' },
+  { key: 'upbeat', en: 'Chopin — Grande Valse', he: 'שופן — הוואלס הגדול' },
+  { key: 'calm', en: 'Chopin — Nocturne', he: 'שופן — נוקטורן' },
+  { key: 'cinematic', en: 'Chopin — Fantaisie-Impromptu', he: 'שופן — פנטזיה-אימפרומפטו' },
+] as const;
+type MusicKey = 'none' | 'custom' | (typeof TRACKS)[number]['key'];
 // Cap the decoded PCM we keep around for long custom songs (clips are ≤ ~2.5min).
 const CUSTOM_CACHE_SECONDS = 160;
 
@@ -53,10 +65,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     setTransition(t);
     localStorage.setItem('picbook-clip-transition', t);
   }, []);
-  const [music, setMusic] = useState<MusicKey>('upbeat');
+  const [music, setMusic] = useState<MusicKey>('morning');
   useEffect(() => {
     const stored = localStorage.getItem('picbook-clip-music') as MusicKey | null;
-    if (stored && MUSIC.includes(stored)) setMusic(stored);
+    if (stored && (stored === 'none' || stored === 'custom' || TRACKS.some((tr) => tr.key === stored)))
+      setMusic(stored);
   }, []);
   const pickMusic = useCallback((m: MusicKey) => {
     setMusic(m);
@@ -87,6 +100,40 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
   }, [pickMusic]);
   // Decoded PCM per track, cached for re-renders within this session.
   const audioCache = useRef<Map<string, { channels: Float32Array[]; sampleRate: number }>>(new Map());
+
+  // In-picker listening: one shared <audio>, streaming straight from the URL.
+  const previewRef = useRef<{ audio: HTMLAudioElement; url: string | null } | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const stopPreview = useCallback(() => {
+    const p = previewRef.current;
+    if (p) {
+      p.audio.pause();
+      if (p.url) URL.revokeObjectURL(p.url);
+      previewRef.current = null;
+    }
+    setPreviewing(null);
+  }, []);
+  const togglePreview = useCallback(
+    async (key: string) => {
+      const wasPlaying = previewing === key;
+      stopPreview();
+      if (wasPlaying) return;
+      let src = `/music/${key}.mp3`;
+      let url: string | null = null;
+      if (key === 'custom') {
+        const stored = await (await getDB()).get('media', 'clip-soundtrack');
+        if (!stored) return;
+        src = url = URL.createObjectURL(stored.blob);
+      }
+      const audio = new Audio(src);
+      audio.onended = stopPreview;
+      previewRef.current = { audio, url };
+      setPreviewing(key);
+      audio.play().catch(stopPreview);
+    },
+    [previewing, stopPreview],
+  );
+  useEffect(() => stopPreview, [stopPreview]);
   const [mapsOn, setMapsOn] = useState(true);
   useEffect(() => setMapsOn(localStorage.getItem('picbook-clip-maps') !== '0'), []);
   const toggleMaps = useCallback(() => {
@@ -121,6 +168,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
   );
 
   const generate = useCallback(async () => {
+    stopPreview();
     setError(null);
     setVideo(null);
     const files = new Map<string, File>();
@@ -253,33 +301,63 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto">
-            <span className="shrink-0 text-xs text-neutral-500">{t('music')}</span>
-            {MUSIC.map((m) => (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              <span className="shrink-0 text-xs text-neutral-500">{t('music')}</span>
               <button
-                key={m}
-                onClick={() => pickMusic(m)}
+                onClick={() => { stopPreview(); pickMusic('none'); }}
                 className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-                  music === m
+                  music === 'none'
                     ? 'border-foreground bg-foreground text-background'
                     : 'border-neutral-500/40 text-neutral-500'
                 }`}
               >
-                {m === 'none' ? t('musicNone') : m === 'upbeat' ? t('musicUpbeat') : m === 'calm' ? t('musicCalm') : t('musicCinematic')}
+                {t('musicNone')}
               </button>
-            ))}
-            <button
-              onClick={pickCustom}
-              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-                music === 'custom'
-                  ? 'border-foreground bg-foreground text-background'
-                  : 'border-neutral-500/40 text-neutral-500'
-              }`}
-            >
-              {music === 'custom' && customName
-                ? `🎵 ${customName.length > 18 ? customName.slice(0, 16) + '…' : customName}`
-                : t('musicCustom')}
-            </button>
+              <button
+                onClick={pickCustom}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                  music === 'custom'
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'border-neutral-500/40 text-neutral-500'
+                }`}
+              >
+                {music === 'custom' && customName
+                  ? `🎵 ${customName.length > 18 ? customName.slice(0, 16) + '…' : customName}`
+                  : t('musicCustom')}
+              </button>
+              {customName && (
+                <button
+                  onClick={() => togglePreview('custom')}
+                  className="shrink-0 rounded-full border border-neutral-500/40 px-2.5 py-1 text-xs text-neutral-500"
+                  aria-label={t('musicPreview')}
+                >
+                  {previewing === 'custom' ? '⏸' : '▶'}
+                </button>
+              )}
+            </div>
+            <div className="max-h-44 divide-y divide-neutral-500/10 overflow-y-auto rounded-xl border border-neutral-500/20">
+              {TRACKS.map((tr) => (
+                <div key={tr.key} className="flex items-center">
+                  <button
+                    onClick={() => togglePreview(tr.key)}
+                    className="shrink-0 px-3 py-2 text-sm text-neutral-500"
+                    aria-label={t('musicPreview')}
+                  >
+                    {previewing === tr.key ? '⏸' : '▶'}
+                  </button>
+                  <button
+                    onClick={() => pickMusic(tr.key)}
+                    className={`flex-1 py-2 pe-3 text-start text-xs ${
+                      music === tr.key ? 'font-semibold' : 'text-neutral-500'
+                    }`}
+                  >
+                    {lang === 'he' ? tr.he : tr.en}
+                    {music === tr.key && <span className="ms-1.5">✓</span>}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           {videoUrl && (
