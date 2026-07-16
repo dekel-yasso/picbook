@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { encodeSoundtrack, type EncodedSound } from '@/lib/engine/audio';
 import { clipSeconds, planClip } from '@/lib/engine/clip';
 import type { ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
@@ -31,7 +32,7 @@ interface ClipProps {
   renderClipVideo: (
     plan: ClipPlan,
     files: Map<string, File>,
-    audio?: { channels: Float32Array[]; sampleRate: number },
+    sound?: EncodedSound,
   ) => Promise<Uint8Array>;
   progress: { done: number; total: number; running: boolean };
   onClose: () => void;
@@ -98,7 +99,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       const f = getFile(id);
       if (f) files.set(id, f);
     }
-    let audio: { channels: Float32Array[]; sampleRate: number } | undefined;
+    let sound: EncodedSound | undefined;
     if (music !== 'none') {
       try {
         let decoded = audioCache.current.get(music);
@@ -116,22 +117,17 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
           };
           audioCache.current.set(music, decoded);
         }
-        // Transfer only what the clip needs (buffers are moved to the worker).
-        const need = Math.min(
-          decoded.channels[0].length,
-          Math.ceil((clipSeconds(plan) + 2) * decoded.sampleRate),
-        );
-        audio = { channels: decoded.channels.map((c) => c.slice(0, need)), sampleRate: decoded.sampleRate };
+        // AAC-encode here on the page — WebKit lacks AudioEncoder in workers.
+        sound =
+          (await encodeSoundtrack(decoded.channels, decoded.sampleRate, clipSeconds(plan))) ??
+          undefined;
       } catch {
-        audio = undefined; // offline / decode failure → silent clip, but say so
+        sound = undefined;
       }
-      if (!audio || typeof AudioEncoder === 'undefined') {
-        setError(t('musicFailed'));
-        if (typeof AudioEncoder === 'undefined') audio = undefined;
-      }
+      if (!sound) setError(t('musicFailed'));
     }
     try {
-      const bytes = await renderClipVideo(plan, files, audio);
+      const bytes = await renderClipVideo(plan, files, sound);
       setVideo(new File([new Uint8Array(bytes)], 'picbook-clip.mp4', { type: 'video/mp4' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

@@ -109,8 +109,9 @@ export type EngineRequest =
       type: 'clip';
       plan: ClipPlan;
       files: [string, File][];
-      /** Decoded PCM for the soundtrack (planar channels); absent = silent. */
-      audio?: { channels: Float32Array[]; sampleRate: number };
+      /** Pre-encoded AAC soundtrack (encoded on the main thread — WebKit lacks
+       *  AudioEncoder in workers); absent = silent. */
+      sound?: import('./audio').EncodedSound;
     };
 
 export type EngineEvent =

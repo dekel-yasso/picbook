@@ -221,11 +221,7 @@ export function useEngine() {
   }, []);
 
   const renderClipVideo = useCallback(
-    (
-      plan: ClipPlan,
-      files: Map<string, File>,
-      audio?: { channels: Float32Array[]; sampleRate: number },
-    ) => {
+    (plan: ClipPlan, files: Map<string, File>, sound?: import('./audio').EncodedSound) => {
       return new Promise<Uint8Array>((resolve, reject) => {
         const worker = workerRef.current;
         if (!worker) {
@@ -235,8 +231,8 @@ export function useEngine() {
         clipResolver.current = { resolve, reject };
         setClipProgress({ done: 0, total: 0, running: true });
         worker.postMessage(
-          { type: 'clip', plan, files: [...files], audio } satisfies EngineRequest,
-          audio ? audio.channels.map((c) => c.buffer) : [],
+          { type: 'clip', plan, files: [...files], sound } satisfies EngineRequest,
+          sound ? sound.chunks.map((c) => c.data.buffer) : [],
         );
       });
     },

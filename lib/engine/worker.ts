@@ -62,7 +62,7 @@ self.onmessage = async (event: MessageEvent<EngineRequest>) => {
       const postTransfer = self.postMessage as (m: EngineEvent, t: Transferable[]) => void;
       postTransfer({ type: 'book-done', bytes: buffer }, [buffer]);
     } else if (msg.type === 'clip') {
-      const bytes = await renderClip(msg.plan, new Map(msg.files), post, msg.audio);
+      const bytes = await renderClip(msg.plan, new Map(msg.files), post, msg.sound);
       const buffer = bytes.buffer as ArrayBuffer;
       const postTransfer = self.postMessage as (m: EngineEvent, t: Transferable[]) => void;
       postTransfer({ type: 'clip-done', bytes: buffer }, [buffer]);

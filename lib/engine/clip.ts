@@ -98,14 +98,12 @@ export async function renderClip(
   plan: ClipPlan,
   files: Map<string, File>,
   emit: (e: EngineEvent) => void,
-  audio?: { channels: Float32Array[]; sampleRate: number },
+  sound?: import('./audio').EncodedSound,
 ): Promise<Uint8Array> {
   if (typeof VideoEncoder === 'undefined') {
     throw new Error('Video export needs a newer browser (WebCodecs is unavailable here)');
   }
-  // Soundtrack only where the browser can AAC-encode; otherwise render silent.
-  const soundtrack =
-    audio && audio.channels.length > 0 && typeof AudioEncoder !== 'undefined' ? audio : null;
+  const soundtrack = sound && sound.chunks.length > 0 ? sound : null;
   const codec = await pickCodec();
   const db = await getDB();
   // Land silhouettes for map segments (cached after first fetch; null offline).
@@ -130,7 +128,7 @@ export async function renderClip(
           audio: {
             codec: 'aac' as const,
             sampleRate: soundtrack.sampleRate,
-            numberOfChannels: soundtrack.channels.length,
+            numberOfChannels: soundtrack.numberOfChannels,
           },
         }
       : {}),
@@ -295,55 +293,24 @@ export async function renderClip(
   encoder.close();
   for (const bmp of bitmaps.values()) bmp?.close();
 
-  // Soundtrack: loop/trim the PCM to the clip length with a fade-in/out,
-  // AAC-encode, and let the muxer interleave it with the video track.
+  // Soundtrack: chunks were AAC-encoded on the main thread; just mux them.
   if (soundtrack) {
-    const { channels, sampleRate } = soundtrack;
-    const ch = channels.length;
-    const srcLen = channels[0].length;
-    const total = Math.ceil(totalSeconds * sampleRate);
-    const fadeIn = Math.round(0.3 * sampleRate);
-    const fadeOut = Math.min(total, Math.round(1.5 * sampleRate));
-    const audioEncoder = new AudioEncoder({
-      output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-      error: (e) => {
-        throw e;
+    const meta: EncodedAudioChunkMetadata = {
+      decoderConfig: {
+        codec: 'mp4a.40.2',
+        sampleRate: soundtrack.sampleRate,
+        numberOfChannels: soundtrack.numberOfChannels,
+        ...(soundtrack.description ? { description: soundtrack.description } : {}),
       },
-    });
-    audioEncoder.configure({
-      codec: 'mp4a.40.2',
-      sampleRate,
-      numberOfChannels: ch,
-      bitrate: 128_000,
-    });
-    const CHUNK = 4800;
-    for (let off = 0; off < total; off += CHUNK) {
-      const n = Math.min(CHUNK, total - off);
-      const data = new Float32Array(ch * n);
-      for (let c = 0; c < ch; c++) {
-        const src = channels[c];
-        for (let i = 0; i < n; i++) {
-          const gi = off + i;
-          let v = src[gi % srcLen]; // loop if the clip outlasts the track
-          if (gi < fadeIn) v *= gi / fadeIn;
-          const fromEnd = total - gi;
-          if (fromEnd < fadeOut) v *= fromEnd / fadeOut;
-          data[c * n + i] = v;
-        }
-      }
-      const frame = new AudioData({
-        format: 'f32-planar',
-        sampleRate,
-        numberOfFrames: n,
-        numberOfChannels: ch,
-        timestamp: Math.round((off / sampleRate) * 1_000_000),
-        data,
-      });
-      audioEncoder.encode(frame);
-      frame.close();
+    };
+    // Drop any audio past the video's end (the last AAC frame can overshoot).
+    const limit = totalSeconds * 1_000_000;
+    let first = true;
+    for (const chunk of soundtrack.chunks) {
+      if (chunk.timestamp > limit) break;
+      muxer.addAudioChunkRaw(chunk.data, chunk.type, chunk.timestamp, chunk.duration, first ? meta : undefined);
+      first = false;
     }
-    await audioEncoder.flush();
-    audioEncoder.close();
   }
 
   muxer.finalize();
