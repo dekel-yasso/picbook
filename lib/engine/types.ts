@@ -80,7 +80,12 @@ export interface BookDoc {
 /** One timeline segment of the trip clip. */
 export type ClipSegment =
   | { kind: 'title'; text: string; sub?: string }
-  | { kind: 'photo'; id: string }
+  | {
+      kind: 'photo';
+      id: string;
+      /** Beat-synced duration override (seconds); default PHOTO_S when absent. */
+      s?: number;
+    }
   | {
       kind: 'map';
       /** null = the opening shot: wide view easing into the first city. */

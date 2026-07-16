@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { encodeSoundtrack, type EncodedSound } from '@/lib/engine/audio';
-import { clipSeconds, planClip } from '@/lib/engine/clip';
+import { detectBeats, loopBeats, syncPlanToBeats } from '@/lib/engine/beats';
+import { clipSeconds, clipSecondsExact, planClip } from '@/lib/engine/clip';
 import { getDB } from '@/lib/engine/db';
 import type { ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
@@ -143,6 +144,14 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     [previewing, stopPreview],
   );
   useEffect(() => stopPreview, [stopPreview]);
+  const [beatSync, setBeatSync] = useState(true);
+  useEffect(() => setBeatSync(localStorage.getItem('picbook-clip-beatsync') !== '0'), []);
+  const toggleBeatSync = useCallback(() => {
+    setBeatSync((on) => {
+      localStorage.setItem('picbook-clip-beatsync', on ? '0' : '1');
+      return !on;
+    });
+  }, []);
   const [mapsOn, setMapsOn] = useState(true);
   useEffect(() => setMapsOn(localStorage.getItem('picbook-clip-maps') !== '0'), []);
   const toggleMaps = useCallback(() => {
@@ -186,6 +195,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       if (f) files.set(id, f);
     }
     let sound: EncodedSound | undefined;
+    let renderPlan: ClipPlan = plan;
     setMusicDiag(null);
     if (music !== 'none') {
       const diag: string[] = [`♪ ${music === 'custom' ? (customName ?? 'custom') : music}`];
@@ -219,9 +229,17 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
           diag.push('cached');
         }
         diag.push(`decoded ${Math.round(decoded.channels[0].length / decoded.sampleRate)}s@${decoded.sampleRate}`);
+        if (beatSync) {
+          const trackSeconds = decoded.channels[0].length / decoded.sampleRate;
+          const oneTrack = detectBeats(decoded.channels, decoded.sampleRate);
+          const beats = loopBeats(oneTrack, trackSeconds, clipSecondsExact(renderPlan) + 5);
+          const synced = syncPlanToBeats(renderPlan, beats);
+          renderPlan = synced.plan;
+          diag.push(`beats ${oneTrack.length} · cuts ${synced.snapped}/${synced.cuts} on beat`);
+        }
         // AAC-encode here on the page — WebKit lacks AudioEncoder in workers.
         sound =
-          (await encodeSoundtrack(decoded.channels, decoded.sampleRate, clipSeconds(plan))) ??
+          (await encodeSoundtrack(decoded.channels, decoded.sampleRate, clipSecondsExact(renderPlan))) ??
           undefined;
         diag.push(
           sound
@@ -236,7 +254,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       if (!sound) setError(t('musicFailed'));
     }
     try {
-      const bytes = await renderClipVideo(plan, files, sound);
+      const bytes = await renderClipVideo(renderPlan, files, sound);
       setVideo(new File([new Uint8Array(bytes)], 'picbook-clip.mp4', { type: 'video/mp4' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -334,6 +352,16 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                 {music === 'custom' && customName
                   ? `🎵 ${customName.length > 18 ? customName.slice(0, 16) + '…' : customName}`
                   : t('musicCustom')}
+              </button>
+              <button
+                onClick={toggleBeatSync}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                  beatSync && music !== 'none'
+                    ? 'border-foreground bg-foreground text-background'
+                    : 'border-neutral-500/40 text-neutral-500'
+                }`}
+              >
+                {t('beatSync')}
               </button>
               {customName && (
                 <button

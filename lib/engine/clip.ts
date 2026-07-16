@@ -81,11 +81,17 @@ function medianLocation(photos: PhotoMeta[]): GeoPoint | null {
 }
 
 function segSeconds(seg: ClipSegment): number {
-  return seg.kind === 'title' ? TITLE_S : seg.kind === 'map' ? seg.duration : PHOTO_S;
+  return seg.kind === 'title' ? TITLE_S : seg.kind === 'map' ? seg.duration : (seg.s ?? PHOTO_S);
 }
 
 export function clipSeconds(plan: ClipPlan): number {
-  return Math.round(plan.segments.reduce((s, seg) => s + segSeconds(seg) - FADE_S, FADE_S));
+  return Math.round(clipSecondsExact(plan));
+}
+
+/** Unrounded duration — the soundtrack is encoded to this, so its fade-out
+ *  ends exactly with the video even after beat-sync nudges the cuts. */
+export function clipSecondsExact(plan: ClipPlan): number {
+  return plan.segments.reduce((s, seg) => s + segSeconds(seg) - FADE_S, FADE_S);
 }
 
 interface Timed {
