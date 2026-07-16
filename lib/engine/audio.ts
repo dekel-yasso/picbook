@@ -31,22 +31,17 @@ export async function encodeSoundtrack(
   const out: EncodedSound = { chunks: [], sampleRate, numberOfChannels: ch };
   let failed: unknown = null;
   const encoder = new AudioEncoder({
-    output: (chunk, meta) => {
-      const data = new Uint8Array(chunk.byteLength);
+    output: (chunk) => {
+      let data = new Uint8Array(chunk.byteLength);
       chunk.copyTo(data);
+      // Safari may emit ADTS-framed AAC; mp4 needs raw frames.
+      data = stripAdts(data);
       out.chunks.push({
         data,
         type: chunk.type === 'key' ? 'key' : 'delta',
         timestamp: chunk.timestamp,
         duration: chunk.duration ?? Math.round((1024 / sampleRate) * 1_000_000),
       });
-      const desc = meta?.decoderConfig?.description;
-      if (desc && !out.description) {
-        const view = ArrayBuffer.isView(desc)
-          ? new Uint8Array(desc.buffer, desc.byteOffset, desc.byteLength)
-          : new Uint8Array(desc as ArrayBuffer);
-        out.description = view.slice(); // independent copy, safe to transfer
-      }
     },
     error: (e) => {
       failed = e;
@@ -93,11 +88,19 @@ export async function encodeSoundtrack(
     return null;
   }
   if (failed || out.chunks.length === 0) return null;
-  // Safari's encoder may omit decoderConfig.description; without an
-  // AudioSpecificConfig in the mp4's esds box, iOS players won't decode the
-  // track (Chrome tolerates it). Synthesize the 2-byte AAC-LC config.
-  if (!out.description) out.description = audioSpecificConfig(sampleRate, ch);
+  // ALWAYS use our own 2-byte AudioSpecificConfig. Encoders disagree about
+  // what `description` contains (Safari returns a 39-byte descriptor wrapper);
+  // embedding the wrong bytes makes iOS players silently refuse the track.
+  out.description = audioSpecificConfig(sampleRate, ch);
   return out;
+}
+
+function stripAdts(data: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
+  if (data.length > 7 && data[0] === 0xff && (data[1] & 0xf0) === 0xf0) {
+    const headerLen = (data[1] & 0x01) === 0 ? 9 : 7; // CRC present → 9 bytes
+    return data.slice(headerLen);
+  }
+  return data;
 }
 
 const AAC_FREQ_INDEX: Record<number, number> = {
