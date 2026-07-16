@@ -123,7 +123,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
         );
         audio = { channels: decoded.channels.map((c) => c.slice(0, need)), sampleRate: decoded.sampleRate };
       } catch {
-        audio = undefined; // offline / unsupported → silent clip
+        audio = undefined; // offline / decode failure → silent clip, but say so
+      }
+      if (!audio || typeof AudioEncoder === 'undefined') {
+        setError(t('musicFailed'));
+        if (typeof AudioEncoder === 'undefined') audio = undefined;
       }
     }
     try {
@@ -132,7 +136,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [plan, photoIds, getFile, renderClipVideo, music]);
+  }, [plan, photoIds, getFile, renderClipVideo, music, t]);
 
   // Kept synchronous inside the tap's user activation so iOS allows share().
   const save = useCallback(() => {
