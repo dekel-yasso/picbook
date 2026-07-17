@@ -150,16 +150,84 @@ export function ReviewOverlay({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, prev, next, decideAndAdvance]);
 
-  const gesture = useRef<{ x: number; y: number; axis: 'h' | 'v' | null } | null>(null);
+  // Zoom on the current pane: pinch, double-tap toggle, one-finger pan while
+  // zoomed. Slide/decide gestures pause until the photo is back at 1×.
+  const [zoom, setZoom] = useState({ s: 1, x: 0, y: 0 });
+  const [zoomAnim, setZoomAnim] = useState(false);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const paneBox = useRef({ w: 1, h: 1 });
+  const pinch = useRef<{ d: number; s0: number; x0: number; y0: number; cx: number; cy: number } | null>(null);
+  const lastTap = useRef({ at: 0, x: 0, y: 0 });
+  const clampZoom = useCallback((z: { s: number; x: number; y: number }) => {
+    const s = Math.min(5, Math.max(1, z.s));
+    const mx = ((s - 1) * paneBox.current.w) / 2;
+    const my = ((s - 1) * paneBox.current.h) / 2;
+    return { s, x: Math.min(mx, Math.max(-mx, z.x)), y: Math.min(my, Math.max(-my, z.y)) };
+  }, []);
+  // Anchor the tapped/pinched content point: it must stay under the finger.
+  const toggleZoom = useCallback(
+    (px: number, py: number) => {
+      setZoomAnim(true);
+      setZoom((z) => (z.s > 1.02 ? { s: 1, x: 0, y: 0 } : clampZoom({ s: 2.5, x: -px * 1.5, y: -py * 1.5 })));
+    },
+    [clampZoom],
+  );
+  useEffect(() => {
+    if (!zoomAnim) return;
+    const t = setTimeout(() => setZoomAnim(false), 220);
+    return () => clearTimeout(t);
+  }, [zoomAnim]);
+  useEffect(() => setZoom({ s: 1, x: 0, y: 0 }), [photo.id]);
+
+  const gesture = useRef<{ x: number; y: number; axis: 'h' | 'v' | null; zx: number; zy: number } | null>(null);
   const onTouchStart = (e: React.TouchEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    paneBox.current = { w: rect.width, h: rect.height };
+    if (e.touches.length === 2) {
+      const [a, b] = [e.touches[0], e.touches[1]];
+      pinch.current = {
+        d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+        s0: zoomRef.current.s,
+        x0: zoomRef.current.x,
+        y0: zoomRef.current.y,
+        cx: (a.clientX + b.clientX) / 2 - rect.left - rect.width / 2,
+        cy: (a.clientY + b.clientY) / 2 - rect.top - rect.height / 2,
+      };
+      gesture.current = null;
+      setDragX(0);
+      return;
+    }
     if (settle) return;
     const t = e.touches[0];
-    gesture.current = { x: t.clientX, y: t.clientY, axis: null };
+    const now = Date.now();
+    const lt = lastTap.current;
+    lastTap.current = { at: now, x: t.clientX, y: t.clientY };
+    if (now - lt.at < 300 && Math.hypot(t.clientX - lt.x, t.clientY - lt.y) < 30) {
+      toggleZoom(t.clientX - rect.left - rect.width / 2, t.clientY - rect.top - rect.height / 2);
+      gesture.current = null;
+      return;
+    }
+    gesture.current = { x: t.clientX, y: t.clientY, axis: null, zx: zoomRef.current.x, zy: zoomRef.current.y };
   };
   const onTouchMove = (e: React.TouchEvent) => {
+    const pz = pinch.current;
+    if (pz && e.touches.length === 2) {
+      const [a, b] = [e.touches[0], e.touches[1]];
+      const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      const s = Math.min(5, Math.max(1, pz.s0 * (d / pz.d)));
+      const cX = (pz.cx - pz.x0) / pz.s0;
+      const cY = (pz.cy - pz.y0) / pz.s0;
+      setZoom(clampZoom({ s, x: pz.cx - cX * s, y: pz.cy - cY * s }));
+      return;
+    }
     const g = gesture.current;
     if (!g || settle) return;
     const t = e.touches[0];
+    if (zoomRef.current.s > 1.02) {
+      setZoom((z) => clampZoom({ s: z.s, x: g.zx + (t.clientX - g.x), y: g.zy + (t.clientY - g.y) }));
+      return;
+    }
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
     if (!g.axis && (Math.abs(dx) > AXIS_LOCK_PX || Math.abs(dy) > AXIS_LOCK_PX)) {
@@ -172,9 +240,18 @@ export function ReviewOverlay({
     }
   };
   const onTouchEnd = (e: React.TouchEvent) => {
+    if (pinch.current) {
+      if (e.touches.length < 2) {
+        pinch.current = null;
+        // Settle tiny scales back to exactly 1× so gestures re-enable cleanly.
+        setZoom((z) => (z.s < 1.05 ? { s: 1, x: 0, y: 0 } : z));
+      }
+      return;
+    }
     const g = gesture.current;
     gesture.current = null;
     if (!g || settle) return;
+    if (zoomRef.current.s > 1.02) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - g.x;
     const dy = t.clientY - g.y;
@@ -246,10 +323,34 @@ export function ReviewOverlay({
       >
         <div className="flex h-full" style={trackStyle} onTransitionEnd={handleSettled}>
           {panes.map((entry, i) => (
-            <div key={entry?.photo.id ?? `edge-${i}`} className="relative h-full w-full shrink-0">
+            <div
+              key={entry?.photo.id ?? `edge-${i}`}
+              className="relative h-full w-full shrink-0 overflow-hidden"
+            >
               {entry && (
                 <>
-                  <FullPhoto id={entry.photo.id} name={entry.photo.name} getFile={getFile} />
+                  <div
+                    className="h-full w-full"
+                    style={
+                      i === 1
+                        ? {
+                            transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.s})`,
+                            transition: zoomAnim ? 'transform 200ms ease-out' : 'none',
+                          }
+                        : undefined
+                    }
+                    onDoubleClick={
+                      i === 1
+                        ? (e) => {
+                            const r = e.currentTarget.getBoundingClientRect();
+                            paneBox.current = { w: r.width, h: r.height };
+                            toggleZoom(e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
+                          }
+                        : undefined
+                    }
+                  >
+                    <FullPhoto id={entry.photo.id} name={entry.photo.name} getFile={getFile} />
+                  </div>
                   <FateBadge entry={entry} decisions={decisions} below={landscape} />
                 </>
               )}
