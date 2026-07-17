@@ -181,7 +181,11 @@ export function ReviewOverlay({
   useEffect(() => setZoom({ s: 1, x: 0, y: 0 }), [photo.id]);
 
   const gesture = useRef<{ x: number; y: number; axis: 'h' | 'v' | null; zx: number; zy: number } | null>(null);
+  // Touch double-taps also fire a synthesized dblclick, which would instantly
+  // undo the zoom the touch path just applied — a visible in-out flick.
+  const touchedAt = useRef(0);
   const onTouchStart = (e: React.TouchEvent) => {
+    touchedAt.current = Date.now();
     const rect = e.currentTarget.getBoundingClientRect();
     paneBox.current = { w: rect.width, h: rect.height };
     if (e.touches.length === 2) {
@@ -342,6 +346,7 @@ export function ReviewOverlay({
                     onDoubleClick={
                       i === 1
                         ? (e) => {
+                            if (Date.now() - touchedAt.current < 800) return;
                             const r = e.currentTarget.getBoundingClientRect();
                             paneBox.current = { w: r.width, h: r.height };
                             toggleZoom(e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
