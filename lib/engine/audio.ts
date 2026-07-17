@@ -26,7 +26,7 @@ export async function encodeSoundtrack(
   const srcLen = channels[0].length;
   const total = Math.ceil(totalSeconds * sampleRate);
   const fadeIn = Math.round(0.3 * sampleRate);
-  const fadeOut = Math.min(total, Math.round(1.5 * sampleRate));
+  const fadeOut = Math.min(total, Math.round(3.5 * sampleRate));
 
   const out: EncodedSound = { chunks: [], sampleRate, numberOfChannels: ch };
   let failed: unknown = null;
