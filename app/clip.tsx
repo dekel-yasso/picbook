@@ -108,6 +108,52 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     document.body.appendChild(input);
     input.click();
   }, [pickMusic]);
+  // Online search (Jamendo, CC-BY/BY-SA only; server route holds the API key).
+  const [jamQuery, setJamQuery] = useState('');
+  const [jamResults, setJamResults] = useState<
+    { id: string; name: string; artist: string; duration: number; audio: string; license: string }[] | null
+  >(null);
+  const [jamBusy, setJamBusy] = useState(false);
+  const [jamFetching, setJamFetching] = useState<string | null>(null);
+  const searchJamendo = useCallback(async () => {
+    const q = jamQuery.trim();
+    if (!q) return;
+    setJamBusy(true);
+    setJamResults(null);
+    try {
+      const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setJamResults(data.results ?? []);
+    } catch {
+      setJamResults([]);
+    } finally {
+      setJamBusy(false);
+    }
+  }, [jamQuery]);
+  const pickJamendo = useCallback(
+    async (hit: { id: string; name: string; artist: string; audio: string; license: string }) => {
+      setJamFetching(hit.id);
+      try {
+        const blob = await fetch(hit.audio).then((r) => {
+          if (!r.ok) throw new Error(`fetch ${r.status}`);
+          return r.blob();
+        });
+        const name = `${hit.artist} — ${hit.name}`;
+        const credit = `Music: ${hit.artist} — “${hit.name}” · Jamendo (${hit.license || 'CC'})`;
+        await (await getDB()).put('media', { blob, name, credit }, 'clip-soundtrack');
+        audioCache.current.delete('custom');
+        localStorage.setItem('picbook-clip-custom-name', name);
+        setCustomName(name);
+        pickMusic('custom');
+      } catch {
+        // leave selection unchanged; the row simply stops spinning
+      } finally {
+        setJamFetching(null);
+      }
+    },
+    [pickMusic],
+  );
+
   // Decoded PCM per track, cached for re-renders within this session.
   const audioCache = useRef<Map<string, { channels: Float32Array[]; sampleRate: number }>>(new Map());
 
@@ -124,11 +170,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     setPreviewing(null);
   }, []);
   const togglePreview = useCallback(
-    async (key: string) => {
+    async (key: string, streamSrc?: string) => {
       const wasPlaying = previewing === key;
       stopPreview();
       if (wasPlaying) return;
-      let src = `/music/${key}.mp3`;
+      let src = streamSrc ?? `/music/${key}.mp3`;
       let url: string | null = null;
       if (key === 'custom') {
         const stored = await (await getDB()).get('media', 'clip-soundtrack');
@@ -197,6 +243,16 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     let sound: EncodedSound | undefined;
     let renderPlan: ClipPlan = plan;
     setMusicDiag(null);
+    if (music === 'custom') {
+      // CC-licensed downloads carry a credit — closes the clip with a card.
+      const stored = await (await getDB()).get('media', 'clip-soundtrack');
+      if (stored?.credit) {
+        renderPlan = {
+          ...renderPlan,
+          segments: [...renderPlan.segments, { kind: 'title', text: '♪', sub: stored.credit }],
+        };
+      }
+    }
     if (music !== 'none') {
       const diag: string[] = [`♪ ${music === 'custom' ? (customName ?? 'custom') : music}`];
       try {
@@ -395,6 +451,52 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                 </div>
               ))}
             </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                value={jamQuery}
+                onChange={(e) => setJamQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchJamendo()}
+                placeholder={t('musicSearchPh')}
+                className="min-w-0 flex-1 rounded-full border border-neutral-500/30 bg-transparent px-3 py-1.5 text-xs outline-none placeholder:text-neutral-500"
+              />
+              <button
+                onClick={searchJamendo}
+                disabled={jamBusy}
+                className="shrink-0 rounded-full border border-neutral-500/40 px-3 py-1.5 text-xs font-medium text-neutral-500"
+              >
+                {jamBusy ? '…' : t('musicSearch')}
+              </button>
+            </div>
+            {jamResults && (
+              <div className="max-h-44 divide-y divide-neutral-500/10 overflow-y-auto rounded-xl border border-neutral-500/20">
+                {jamResults.length === 0 && (
+                  <p className="px-3 py-2 text-xs text-neutral-500">{t('musicSearchNone')}</p>
+                )}
+                {jamResults.map((hit) => (
+                  <div key={hit.id} className="flex items-center">
+                    <button
+                      onClick={() => togglePreview(`jam:${hit.id}`, hit.audio)}
+                      className="shrink-0 px-3 py-2 text-sm text-neutral-500"
+                      aria-label={t('musicPreview')}
+                    >
+                      {previewing === `jam:${hit.id}` ? '⏸' : '▶'}
+                    </button>
+                    <button
+                      onClick={() => pickJamendo(hit)}
+                      className="min-w-0 flex-1 py-2 pe-3 text-start text-xs text-neutral-500"
+                    >
+                      <span className="block truncate">
+                        {jamFetching === hit.id ? '⏳ ' : ''}
+                        {hit.artist} — {hit.name}
+                      </span>
+                      <span className="text-[10px] opacity-70">
+                        {Math.floor(hit.duration / 60)}:{String(hit.duration % 60).padStart(2, '0')} · {hit.license}
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {videoUrl && (

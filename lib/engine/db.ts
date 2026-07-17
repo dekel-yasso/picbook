@@ -12,8 +12,9 @@ interface PicBookDB extends DBSchema {
   /** Reverse-geocode cache: "lat,lon" (2dp) → place name ('' = looked up, nothing found). */
   geo: { key: string; value: string };
   trips: { key: string; value: Trip };
-  /** Small user media, e.g. the custom clip soundtrack. */
-  media: { key: string; value: { blob: Blob; name: string } };
+  /** Small user media, e.g. the custom clip soundtrack.
+   *  `credit` marks CC-licensed downloads that need an attribution card. */
+  media: { key: string; value: { blob: Blob; name: string; credit?: string } };
 }
 
 let dbPromise: Promise<IDBPDatabase<PicBookDB>> | null = null;
