@@ -40,6 +40,7 @@ export function useEngine() {
   const [renditionsVersion, setRenditionsVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const bookResolver = useRef<{ resolve: (b: Uint8Array) => void; reject: (e: Error) => void } | null>(null);
+  const coverResolver = useRef<{ resolve: (b: Uint8Array) => void; reject: (e: Error) => void } | null>(null);
   const [clipProgress, setClipProgress] = useState<AnalyzeProgress>({ done: 0, total: 0, running: false });
   const clipResolver = useRef<{ resolve: (b: Uint8Array) => void; reject: (e: Error) => void } | null>(null);
 
@@ -111,6 +112,9 @@ export function useEngine() {
         setBookProgress((p) => ({ ...p, running: false }));
         bookResolver.current?.resolve(new Uint8Array(ev.bytes));
         bookResolver.current = null;
+      } else if (ev.type === 'cover-done') {
+        coverResolver.current?.resolve(new Uint8Array(ev.bytes));
+        coverResolver.current = null;
       } else if (ev.type === 'clip-progress') {
         setClipProgress({ done: ev.done, total: ev.total, running: true });
       } else if (ev.type === 'clip-done') {
@@ -127,6 +131,8 @@ export function useEngine() {
         setClipProgress((p) => ({ ...p, running: false }));
         bookResolver.current?.reject(new Error(ev.message));
         bookResolver.current = null;
+        coverResolver.current?.reject(new Error(ev.message));
+        coverResolver.current = null;
         clipResolver.current?.reject(new Error(ev.message));
         clipResolver.current = null;
       }
@@ -220,6 +226,18 @@ export function useEngine() {
     });
   }, []);
 
+  const renderCover = useCallback((plan: BookPlan, files: Map<string, File>, title: string) => {
+    return new Promise<Uint8Array>((resolve, reject) => {
+      const worker = workerRef.current;
+      if (!worker) {
+        reject(new Error('engine not ready'));
+        return;
+      }
+      coverResolver.current = { resolve, reject };
+      worker.postMessage({ type: 'cover', plan, files: [...files], title } satisfies EngineRequest);
+    });
+  }, []);
+
   const renderClipVideo = useCallback(
     (plan: ClipPlan, files: Map<string, File>, sound?: import('./audio').EncodedSound) => {
       return new Promise<Uint8Array>((resolve, reject) => {
@@ -256,5 +274,6 @@ export function useEngine() {
     requestEmbed,
     requestRenditions,
     renderBook,
+    renderCover,
   };
 }

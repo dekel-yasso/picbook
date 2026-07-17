@@ -15,16 +15,20 @@ interface BookProps {
   places: Map<string, string>;
   getFile: (id: string) => File | undefined;
   renderBook: (plan: BookPlan, files: Map<string, File>) => Promise<Uint8Array>;
+  renderCover: (plan: BookPlan, files: Map<string, File>, title: string) => Promise<Uint8Array>;
+  tripName: string;
   progress: { done: number; total: number; running: boolean };
   onClose: () => void;
 }
 
-export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, renderBook, progress, onClose }: BookProps) {
+export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, renderBook, renderCover, tripName, progress, onClose }: BookProps) {
   const { lang, t } = useI18n();
   const maxPhotos = keepers.length;
   const [target, setTarget] = useState(Math.min(48, maxPhotos));
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [pdf, setPdf] = useState<File | null>(null);
+  const [cover, setCover] = useState<File | null>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // The book document (size + edited titles) persists across sessions.
@@ -83,20 +87,41 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
     }
   }, [titled, getFile, renderBook]);
 
+  const generateCover = useCallback(async () => {
+    setError(null);
+    setCover(null);
+    setCoverBusy(true);
+    const files = new Map<string, File>();
+    const heroId = titled.chapters[0]?.heroId;
+    if (heroId) {
+      const f = getFile(heroId);
+      if (f) files.set(heroId, f);
+    }
+    try {
+      const bytes = await renderCover(titled, files, tripName);
+      setCover(new File([new Uint8Array(bytes)], 'picbook-cover.pdf', { type: 'application/pdf' }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCoverBusy(false);
+    }
+  }, [titled, getFile, renderCover, tripName]);
+
   // Kept synchronous inside the tap's user activation so iOS allows share().
-  const save = useCallback(() => {
-    if (!pdf) return;
-    if (navigator.canShare?.({ files: [pdf] })) {
-      navigator.share({ files: [pdf] }).catch(() => {});
+  const shareFile = useCallback((file: File | null) => {
+    if (!file) return;
+    if (navigator.canShare?.({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(() => {});
       return;
     }
-    const url = URL.createObjectURL(pdf);
+    const url = URL.createObjectURL(file);
     const a = document.createElement('a');
     a.href = url;
-    a.download = pdf.name;
+    a.download = file.name;
     a.click();
     URL.revokeObjectURL(url);
-  }, [pdf]);
+  }, []);
+  const save = useCallback(() => shareFile(pdf), [shareFile, pdf]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -191,6 +216,25 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
               </button>
             )}
           </div>
+          {pdf && !progress.running && (
+            <div className="flex gap-2">
+              <button
+                onClick={generateCover}
+                disabled={coverBusy}
+                className="flex-1 rounded-xl border border-neutral-500/50 py-2.5 text-xs font-semibold disabled:opacity-40"
+              >
+                {coverBusy ? t('rendering') : t('renderCover')}
+              </button>
+              {cover && !coverBusy && (
+                <button
+                  onClick={() => shareFile(cover)}
+                  className="flex-1 rounded-xl bg-foreground py-2.5 text-xs font-semibold text-background"
+                >
+                  {t('saveCover')}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

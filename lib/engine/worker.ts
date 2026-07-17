@@ -3,7 +3,7 @@ import { renderClip } from './clip';
 import { embedAll } from './embed';
 import { facesAll } from './faces';
 import { ingest } from './ingest';
-import { renderBookPdf } from './pdf';
+import { renderBookPdf, renderCoverPdf } from './pdf';
 import { makeRenditions } from './renditions';
 import type { EngineEvent, EngineRequest } from './types';
 
@@ -61,6 +61,11 @@ self.onmessage = async (event: MessageEvent<EngineRequest>) => {
       // Cast around TS resolving self.postMessage to the Window overload here.
       const postTransfer = self.postMessage as (m: EngineEvent, t: Transferable[]) => void;
       postTransfer({ type: 'book-done', bytes: buffer }, [buffer]);
+    } else if (msg.type === 'cover') {
+      const bytes = await renderCoverPdf(msg.plan, new Map(msg.files), msg.title);
+      const buffer = bytes.buffer as ArrayBuffer;
+      const postTransfer = self.postMessage as (m: EngineEvent, t: Transferable[]) => void;
+      postTransfer({ type: 'cover-done', bytes: buffer }, [buffer]);
     } else if (msg.type === 'clip') {
       const bytes = await renderClip(msg.plan, new Map(msg.files), post, msg.sound);
       const buffer = bytes.buffer as ArrayBuffer;

@@ -39,6 +39,7 @@ export default function Home() {
     requestEmbed,
     requestRenditions,
     renderBook,
+    renderCover,
   } = useEngine();
   const { lang, t } = useI18n();
   const [bookOpen, setBookOpen] = useState(false);
@@ -788,6 +789,8 @@ export default function Home() {
           places={places}
           getFile={getFile}
           renderBook={renderBook}
+          renderCover={renderCover}
+          tripName={trips.find((tr) => tr.id === activeTripId)?.name ?? 'PicBook'}
           progress={bookProgress}
           onClose={() => setBookOpen(false)}
         />

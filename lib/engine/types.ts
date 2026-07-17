@@ -110,6 +110,7 @@ export type EngineRequest =
   | { type: 'embed' }
   | { type: 'renditions'; items: [string, File][] }
   | { type: 'book'; plan: BookPlan; files: [string, File][] }
+  | { type: 'cover'; plan: BookPlan; files: [string, File][]; title: string }
   | {
       type: 'clip';
       plan: ClipPlan;
@@ -132,6 +133,7 @@ export type EngineEvent =
   | { type: 'renditions-done'; stored: number }
   | { type: 'book-progress'; done: number; total: number }
   | { type: 'book-done'; bytes: ArrayBuffer }
+  | { type: 'cover-done'; bytes: ArrayBuffer }
   | { type: 'clip-progress'; done: number; total: number }
   | { type: 'clip-done'; bytes: ArrayBuffer }
   | { type: 'engine-error'; message: string };

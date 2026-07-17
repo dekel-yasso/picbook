@@ -144,6 +144,8 @@ export const STRINGS = {
     musicSearch: 'Search',
     musicSearchPh: '🔎 Find music online — e.g. summer road trip',
     musicSearchNone: 'No tracks found — try different words (English works best)',
+    renderCover: 'Print cover (Blurb 7×7)',
+    saveCover: 'Save cover PDF',
     musicFailed: '⚠ The music track could not be included — the clip was rendered silent. Try re-rendering.',
     // account
     accountTitle: 'Account & sync',
@@ -265,6 +267,8 @@ export const STRINGS = {
     musicSearch: 'חיפוש',
     musicSearchPh: '🔎 חיפוש מוזיקה ברשת — למשל summer road trip',
     musicSearchNone: 'לא נמצאו קטעים — נסו מילים אחרות (עדיף באנגלית)',
+    renderCover: 'כריכה להדפסה (Blurb 7×7)',
+    saveCover: 'שמירת כריכה PDF',
     musicFailed: '⚠ לא הצלחנו לכלול את המוזיקה — הקליפ נוצר ללא קול. נסו ליצור שוב.',
     accountTitle: 'חשבון וסנכרון',
     signedInAs: 'מחובר בתור',
