@@ -616,7 +616,13 @@ export default function Home() {
               ? cells.length
               : dayClusters.reduce((n, c) => n + c.photos.length, 0);
             return (
-              <section key={label} className="flex flex-col gap-2">
+              <section
+                key={label}
+                className="flex flex-col gap-2"
+                // Off-screen days skip layout/paint entirely; the estimate just
+                // keeps the scrollbar stable until a section is first rendered.
+                style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 480px' }}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <button
                     onClick={() => toggleDay(label)}
