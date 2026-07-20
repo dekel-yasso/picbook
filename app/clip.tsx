@@ -19,6 +19,10 @@ const LENGTHS = [
 const ORIGINALS = [
   { key: 'whereverwego', en: 'Wherever We Go', he: 'Wherever We Go' },
   { key: 'daysremember', en: 'Days to Remember', he: 'Days to Remember' },
+  { key: 'findmyway', en: 'Find My Way', he: 'Find My Way' },
+  { key: 'neonroads', en: 'Neon Roads', he: 'Neon Roads' },
+  { key: 'hallelujah', en: 'Hallelujah for Our Days', he: 'Hallelujah for Our Days' },
+  { key: 'notsolongago', en: 'Not So Long Ago', he: 'Not So Long Ago' },
   { key: 'saltsunscreen', en: 'Salt & Sunscreen', he: 'Salt & Sunscreen' },
   { key: 'citylights', en: 'City Lights Run', he: 'City Lights Run' },
   { key: 'higherclouds', en: 'Higher Than the Clouds', he: 'Higher Than the Clouds' },
