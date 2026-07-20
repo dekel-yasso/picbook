@@ -18,6 +18,7 @@ const LENGTHS = [
 // The user's own Suno-made songs (full rights) — the app's signature tracks.
 const ORIGINALS = [
   { key: 'whereverwego', en: 'Wherever We Go', he: 'Wherever We Go' },
+  { key: 'daysremember', en: 'Days to Remember', he: 'Days to Remember' },
   { key: 'saltsunscreen', en: 'Salt & Sunscreen', he: 'Salt & Sunscreen' },
   { key: 'citylights', en: 'City Lights Run', he: 'City Lights Run' },
   { key: 'higherclouds', en: 'Higher Than the Clouds', he: 'Higher Than the Clouds' },
