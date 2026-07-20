@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local song masters (app copies live in public/music/)
+/Music/
+/*.mp3

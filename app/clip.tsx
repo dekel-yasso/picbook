@@ -15,6 +15,19 @@ const LENGTHS = [
   { label: 'Long', photos: 60 },
 ] as const;
 
+// The user's own Suno-made songs (full rights) — the app's signature tracks.
+const ORIGINALS = [
+  { key: 'whereverwego', en: 'Wherever We Go', he: 'Wherever We Go' },
+  { key: 'saltsunscreen', en: 'Salt & Sunscreen', he: 'Salt & Sunscreen' },
+  { key: 'citylights', en: 'City Lights Run', he: 'City Lights Run' },
+  { key: 'higherclouds', en: 'Higher Than the Clouds', he: 'Higher Than the Clouds' },
+  { key: 'arewethereyet', en: 'Are We There Yet?', he: 'Are We There Yet?' },
+  { key: 'photosgold', en: 'Photos Turn to Gold', he: 'Photos Turn to Gold' },
+  { key: 'builtbyyou', en: 'Built by You', he: 'Built by You' },
+  { key: 'mywife', en: 'My Wife Is the Best', he: 'My Wife Is the Best' },
+  { key: 'outoftokens', en: 'Out of Tokens', he: 'Out of Tokens' },
+] as const;
+
 // Built-in soundtrack library: public-domain recordings (Musopen), trimmed to
 // ~2min in public/music/. Keys double as filenames.
 const TRACKS = [
@@ -37,7 +50,7 @@ const TRACKS = [
   { key: 'calm', en: 'Chopin — Nocturne', he: 'שופן — נוקטורן' },
   { key: 'cinematic', en: 'Chopin — Fantaisie-Impromptu', he: 'שופן — פנטזיה-אימפרומפטו' },
 ] as const;
-type MusicKey = 'none' | 'custom' | (typeof TRACKS)[number]['key'];
+type MusicKey = 'none' | 'custom' | (typeof TRACKS)[number]['key'] | (typeof ORIGINALS)[number]['key'];
 // Cap the decoded PCM we keep around for long custom songs (clips are ≤ ~2.5min).
 const CUSTOM_CACHE_SECONDS = 160;
 
@@ -75,10 +88,10 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     setTransition(t);
     localStorage.setItem('picbook-clip-transition', t);
   }, []);
-  const [music, setMusic] = useState<MusicKey>('morning');
+  const [music, setMusic] = useState<MusicKey>('whereverwego');
   useEffect(() => {
     const stored = localStorage.getItem('picbook-clip-music') as MusicKey | null;
-    if (stored && (stored === 'none' || stored === 'custom' || TRACKS.some((tr) => tr.key === stored)))
+    if (stored && (stored === 'none' || stored === 'custom' || TRACKS.some((tr) => tr.key === stored) || ORIGINALS.some((tr) => tr.key === stored)))
       setMusic(stored);
   }, []);
   const pickMusic = useCallback((m: MusicKey) => {
@@ -430,6 +443,32 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
               )}
             </div>
             <div className="max-h-44 divide-y divide-neutral-500/10 overflow-y-auto rounded-xl border border-neutral-500/20">
+              <p className="bg-neutral-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {t('musicOriginals')}
+              </p>
+              {ORIGINALS.map((tr) => (
+                <div key={tr.key} className="flex items-center">
+                  <button
+                    onClick={() => togglePreview(tr.key)}
+                    className="shrink-0 px-3 py-2 text-sm text-neutral-500"
+                    aria-label={t('musicPreview')}
+                  >
+                    {previewing === tr.key ? '⏸' : '▶'}
+                  </button>
+                  <button
+                    onClick={() => pickMusic(tr.key)}
+                    className={`flex-1 py-2 pe-3 text-start text-xs ${
+                      music === tr.key ? 'font-semibold' : 'text-neutral-500'
+                    }`}
+                  >
+                    {lang === 'he' ? tr.he : tr.en}
+                    {music === tr.key && <span className="ms-1.5">✓</span>}
+                  </button>
+                </div>
+              ))}
+              <p className="bg-neutral-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {t('musicClassical')}
+              </p>
               {TRACKS.map((tr) => (
                 <div key={tr.key} className="flex items-center">
                   <button
