@@ -99,6 +99,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     setMusic(m);
     localStorage.setItem('picbook-clip-music', m);
   }, []);
+  const [musicOpen, setMusicOpen] = useState(false);
+  const closeMusic = useCallback(() => {
+    stopPreviewRef.current?.();
+    setMusicOpen(false);
+  }, []);
   const [customName, setCustomName] = useState<string | null>(null);
   useEffect(() => setCustomName(localStorage.getItem('picbook-clip-custom-name')), []);
   // Pick an audio file from the device; persisted in IndexedDB for next time.
@@ -172,6 +177,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
   const audioCache = useRef<Map<string, { channels: Float32Array[]; sampleRate: number }>>(new Map());
 
   // In-picker listening: one shared <audio>, streaming straight from the URL.
+  const stopPreviewRef = useRef<(() => void) | null>(null);
   const previewRef = useRef<{ audio: HTMLAudioElement; url: string | null } | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const stopPreview = useCallback(() => {
@@ -204,6 +210,16 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     [previewing, stopPreview],
   );
   useEffect(() => stopPreview, [stopPreview]);
+  stopPreviewRef.current = stopPreview;
+  const currentTrackLabel =
+    music === 'none'
+      ? t('musicNone')
+      : music === 'custom'
+        ? `🎵 ${customName ?? t('musicCustom')}`
+        : (() => {
+            const tr = [...ORIGINALS, ...TRACKS].find((x) => x.key === music);
+            return tr ? (lang === 'he' ? tr.he : tr.en) : music;
+          })();
   const [beatSync, setBeatSync] = useState(true);
   useEffect(() => setBeatSync(localStorage.getItem('picbook-clip-beatsync') !== '0'), []);
   const toggleBeatSync = useCallback(() => {
@@ -398,146 +414,169 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             </button>
           </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 overflow-x-auto">
-              <span className="shrink-0 text-xs text-neutral-500">{t('music')}</span>
-              <button
-                onClick={() => { stopPreview(); pickMusic('none'); }}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-                  music === 'none'
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-neutral-500/40 text-neutral-500'
-                }`}
-              >
-                {t('musicNone')}
-              </button>
-              <button
-                onClick={pickCustom}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-                  music === 'custom'
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-neutral-500/40 text-neutral-500'
-                }`}
-              >
-                {music === 'custom' && customName
-                  ? `🎵 ${customName.length > 18 ? customName.slice(0, 16) + '…' : customName}`
-                  : t('musicCustom')}
-              </button>
-              <button
-                onClick={toggleBeatSync}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
-                  beatSync && music !== 'none'
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-neutral-500/40 text-neutral-500'
-                }`}
-              >
-                {t('beatSync')}
-              </button>
-              {customName && (
-                <button
-                  onClick={() => togglePreview('custom')}
-                  className="shrink-0 rounded-full border border-neutral-500/40 px-2.5 py-1 text-xs text-neutral-500"
-                  aria-label={t('musicPreview')}
-                >
-                  {previewing === 'custom' ? '⏸' : '▶'}
+          <div className="flex items-center gap-1.5">
+            <span className="shrink-0 text-xs text-neutral-500">{t('music')}</span>
+            <button
+              onClick={() => setMusicOpen(true)}
+              className="flex min-w-0 flex-1 items-center justify-between rounded-full border border-neutral-500/40 px-3 py-1.5 text-xs font-medium"
+            >
+              <span className="truncate">{currentTrackLabel}</span>
+              <span className="ms-2 shrink-0 text-neutral-500">{lang === 'he' ? '‹' : '›'}</span>
+            </button>
+            <button
+              onClick={toggleBeatSync}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                beatSync && music !== 'none'
+                  ? 'border-foreground bg-foreground text-background'
+                  : 'border-neutral-500/40 text-neutral-500'
+              }`}
+            >
+              {t('beatSync')}
+            </button>
+          </div>
+
+          {musicOpen && (
+            <div className="fixed inset-0 z-[60] flex flex-col bg-background">
+              <div className="flex items-center justify-between border-b border-neutral-500/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+                <button onClick={closeMusic} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
+                  ✕
                 </button>
-              )}
-            </div>
-            <div className="max-h-44 divide-y divide-neutral-500/10 overflow-y-auto rounded-xl border border-neutral-500/20">
-              <p className="bg-neutral-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {t('musicOriginals')}
-              </p>
-              {ORIGINALS.map((tr) => (
-                <div key={tr.key} className="flex items-center">
-                  <button
-                    onClick={() => togglePreview(tr.key)}
-                    className="shrink-0 px-3 py-2 text-sm text-neutral-500"
-                    aria-label={t('musicPreview')}
-                  >
-                    {previewing === tr.key ? '⏸' : '▶'}
-                  </button>
-                  <button
-                    onClick={() => pickMusic(tr.key)}
-                    className={`flex-1 py-2 pe-3 text-start text-xs ${
-                      music === tr.key ? 'font-semibold' : 'text-neutral-500'
-                    }`}
-                  >
-                    {lang === 'he' ? tr.he : tr.en}
-                    {music === tr.key && <span className="ms-1.5">✓</span>}
-                  </button>
-                </div>
-              ))}
-              <p className="bg-neutral-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {t('musicClassical')}
-              </p>
-              {TRACKS.map((tr) => (
-                <div key={tr.key} className="flex items-center">
-                  <button
-                    onClick={() => togglePreview(tr.key)}
-                    className="shrink-0 px-3 py-2 text-sm text-neutral-500"
-                    aria-label={t('musicPreview')}
-                  >
-                    {previewing === tr.key ? '⏸' : '▶'}
-                  </button>
-                  <button
-                    onClick={() => pickMusic(tr.key)}
-                    className={`flex-1 py-2 pe-3 text-start text-xs ${
-                      music === tr.key ? 'font-semibold' : 'text-neutral-500'
-                    }`}
-                  >
-                    {lang === 'he' ? tr.he : tr.en}
-                    {music === tr.key && <span className="ms-1.5">✓</span>}
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <input
-                value={jamQuery}
-                onChange={(e) => setJamQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && searchJamendo()}
-                placeholder={t('musicSearchPh')}
-                className="min-w-0 flex-1 rounded-full border border-neutral-500/30 bg-transparent px-3 py-1.5 text-xs outline-none placeholder:text-neutral-500"
-              />
-              <button
-                onClick={searchJamendo}
-                disabled={jamBusy}
-                className="shrink-0 rounded-full border border-neutral-500/40 px-3 py-1.5 text-xs font-medium text-neutral-500"
-              >
-                {jamBusy ? '…' : t('musicSearch')}
-              </button>
-            </div>
-            {jamResults && (
-              <div className="max-h-44 divide-y divide-neutral-500/10 overflow-y-auto rounded-xl border border-neutral-500/20">
-                {jamResults.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-neutral-500">{t('musicSearchNone')}</p>
-                )}
-                {jamResults.map((hit) => (
-                  <div key={hit.id} className="flex items-center">
+                <span className="text-sm font-semibold">{t('music')}</span>
+                <span className="w-8" />
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 p-4">
+                  <div className="flex items-center gap-1.5 overflow-x-auto">
                     <button
-                      onClick={() => togglePreview(`jam:${hit.id}`, hit.audio)}
-                      className="shrink-0 px-3 py-2 text-sm text-neutral-500"
-                      aria-label={t('musicPreview')}
+                      onClick={() => { stopPreview(); pickMusic('none'); setMusicOpen(false); }}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                        music === 'none'
+                          ? 'border-foreground bg-foreground text-background'
+                          : 'border-neutral-500/40 text-neutral-500'
+                      }`}
                     >
-                      {previewing === `jam:${hit.id}` ? '⏸' : '▶'}
+                      {t('musicNone')}
                     </button>
                     <button
-                      onClick={() => pickJamendo(hit)}
-                      className="min-w-0 flex-1 py-2 pe-3 text-start text-xs text-neutral-500"
+                      onClick={pickCustom}
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                        music === 'custom'
+                          ? 'border-foreground bg-foreground text-background'
+                          : 'border-neutral-500/40 text-neutral-500'
+                      }`}
                     >
-                      <span className="block truncate">
-                        {jamFetching === hit.id ? '⏳ ' : ''}
-                        {hit.artist} — {hit.name}
-                      </span>
-                      <span className="text-[10px] opacity-70">
-                        {Math.floor(hit.duration / 60)}:{String(hit.duration % 60).padStart(2, '0')} · {hit.license}
-                      </span>
+                      {music === 'custom' && customName
+                        ? `🎵 ${customName.length > 18 ? customName.slice(0, 16) + '…' : customName}`
+                        : t('musicCustom')}
+                    </button>
+                    {customName && (
+                      <button
+                        onClick={() => togglePreview('custom')}
+                        className="shrink-0 rounded-full border border-neutral-500/40 px-2.5 py-1 text-xs text-neutral-500"
+                        aria-label={t('musicPreview')}
+                      >
+                        {previewing === 'custom' ? '⏸' : '▶'}
+                      </button>
+                    )}
+                  </div>
+                  <div className="divide-y divide-neutral-500/10 overflow-hidden rounded-xl border border-neutral-500/20">
+                    <p className="bg-neutral-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                      {t('musicOriginals')}
+                    </p>
+                    {ORIGINALS.map((tr) => (
+                      <div key={tr.key} className="flex items-center">
+                        <button
+                          onClick={() => togglePreview(tr.key)}
+                          className="shrink-0 px-3 py-2.5 text-sm text-neutral-500"
+                          aria-label={t('musicPreview')}
+                        >
+                          {previewing === tr.key ? '⏸' : '▶'}
+                        </button>
+                        <button
+                          onClick={() => { pickMusic(tr.key); closeMusic(); }}
+                          className={`flex-1 py-2.5 pe-3 text-start text-sm ${
+                            music === tr.key ? 'font-semibold' : 'text-neutral-500'
+                          }`}
+                        >
+                          {lang === 'he' ? tr.he : tr.en}
+                          {music === tr.key && <span className="ms-1.5">✓</span>}
+                        </button>
+                      </div>
+                    ))}
+                    <p className="bg-neutral-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                      {t('musicClassical')}
+                    </p>
+                    {TRACKS.map((tr) => (
+                      <div key={tr.key} className="flex items-center">
+                        <button
+                          onClick={() => togglePreview(tr.key)}
+                          className="shrink-0 px-3 py-2.5 text-sm text-neutral-500"
+                          aria-label={t('musicPreview')}
+                        >
+                          {previewing === tr.key ? '⏸' : '▶'}
+                        </button>
+                        <button
+                          onClick={() => { pickMusic(tr.key); closeMusic(); }}
+                          className={`flex-1 py-2.5 pe-3 text-start text-sm ${
+                            music === tr.key ? 'font-semibold' : 'text-neutral-500'
+                          }`}
+                        >
+                          {lang === 'he' ? tr.he : tr.en}
+                          {music === tr.key && <span className="ms-1.5">✓</span>}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      value={jamQuery}
+                      onChange={(e) => setJamQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && searchJamendo()}
+                      placeholder={t('musicSearchPh')}
+                      className="min-w-0 flex-1 rounded-full border border-neutral-500/30 bg-transparent px-3 py-2 text-xs outline-none placeholder:text-neutral-500"
+                    />
+                    <button
+                      onClick={searchJamendo}
+                      disabled={jamBusy}
+                      className="shrink-0 rounded-full border border-neutral-500/40 px-3 py-2 text-xs font-medium text-neutral-500"
+                    >
+                      {jamBusy ? '…' : t('musicSearch')}
                     </button>
                   </div>
-                ))}
+                  {jamResults && (
+                    <div className="divide-y divide-neutral-500/10 overflow-hidden rounded-xl border border-neutral-500/20">
+                      {jamResults.length === 0 && (
+                        <p className="px-3 py-2 text-xs text-neutral-500">{t('musicSearchNone')}</p>
+                      )}
+                      {jamResults.map((hit) => (
+                        <div key={hit.id} className="flex items-center">
+                          <button
+                            onClick={() => togglePreview(`jam:${hit.id}`, hit.audio)}
+                            className="shrink-0 px-3 py-2.5 text-sm text-neutral-500"
+                            aria-label={t('musicPreview')}
+                          >
+                            {previewing === `jam:${hit.id}` ? '⏸' : '▶'}
+                          </button>
+                          <button
+                            onClick={async () => { await pickJamendo(hit); closeMusic(); }}
+                            className="min-w-0 flex-1 py-2.5 pe-3 text-start text-sm text-neutral-500"
+                          >
+                            <span className="block truncate">
+                              {jamFetching === hit.id ? '⏳ ' : ''}
+                              {hit.artist} — {hit.name}
+                            </span>
+                            <span className="text-[10px] opacity-70">
+                              {Math.floor(hit.duration / 60)}:{String(hit.duration % 60).padStart(2, '0')} · {hit.license}
+                            </span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {videoUrl && (
             <video
