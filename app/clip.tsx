@@ -23,6 +23,8 @@ const ORIGINALS = [
   { key: 'neonroads', en: 'Neon Roads', he: 'Neon Roads' },
   { key: 'hallelujah', en: 'Hallelujah for Our Days', he: 'Hallelujah for Our Days' },
   { key: 'notsolongago', en: 'Not So Long Ago', he: 'Not So Long Ago' },
+  { key: 'oneroad', en: 'One Road', he: 'One Road' },
+  { key: 'wayhome', en: 'The Way Home', he: 'The Way Home' },
   { key: 'saltsunscreen', en: 'Salt & Sunscreen', he: 'Salt & Sunscreen' },
   { key: 'citylights', en: 'City Lights Run', he: 'City Lights Run' },
   { key: 'higherclouds', en: 'Higher Than the Clouds', he: 'Higher Than the Clouds' },
