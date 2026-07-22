@@ -62,6 +62,17 @@ type MusicKey = 'none' | 'custom' | (typeof TRACKS)[number]['key'] | (typeof ORI
 // Cap the decoded PCM we keep around for long custom songs (clips are ≤ ~2.5min).
 const CUSTOM_CACHE_SECONDS = 160;
 
+// Trip theme (from the CLIP pass) → suggested Original, used until the user
+// picks a track themselves.
+const THEME_TRACK: Record<string, MusicKey> = {
+  Water: 'saltsunscreen',
+  City: 'citylights',
+  Landscape: 'higherclouds',
+  Night: 'neonroads',
+  Animals: 'arewethereyet',
+  Art: 'citylights',
+};
+
 const TRANSITIONS: { value: ClipTransition; label: string }[] = [
   { value: 'fade', label: 'Fade' },
   { value: 'slide', label: 'Slide' },
@@ -97,11 +108,32 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     localStorage.setItem('picbook-clip-transition', t);
   }, []);
   const [music, setMusic] = useState<MusicKey>('whereverwego');
+  // Suggest a track that fits the trip's dominant theme — beach trips open
+  // with the beach song. An explicit user choice (stored) always wins.
+  const suggested = useMemo<MusicKey>(() => {
+    const counts = new Map<string, number>();
+    let themed = 0;
+    for (const p of keepers) {
+      if (!p.theme) continue;
+      themed++;
+      counts.set(p.theme, (counts.get(p.theme) ?? 0) + 1);
+    }
+    let best: string | null = null;
+    let bn = 0;
+    for (const [th, n] of counts) {
+      if (n > bn) {
+        bn = n;
+        best = th;
+      }
+    }
+    return (best && bn >= themed * 0.3 && THEME_TRACK[best]) || 'whereverwego';
+  }, [keepers]);
   useEffect(() => {
     const stored = localStorage.getItem('picbook-clip-music') as MusicKey | null;
     if (stored && (stored === 'none' || stored === 'custom' || TRACKS.some((tr) => tr.key === stored) || ORIGINALS.some((tr) => tr.key === stored)))
       setMusic(stored);
-  }, []);
+    else setMusic(suggested);
+  }, [suggested]);
   const pickMusic = useCallback((m: MusicKey) => {
     setMusic(m);
     localStorage.setItem('picbook-clip-music', m);
