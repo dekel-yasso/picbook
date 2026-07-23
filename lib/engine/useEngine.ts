@@ -226,7 +226,7 @@ export function useEngine() {
     });
   }, []);
 
-  const renderCover = useCallback((plan: BookPlan, files: Map<string, File>, title: string) => {
+  const renderCover = useCallback((plan: BookPlan, files: Map<string, File>, title: string, cover: import('./pdf').CoverType = 'softcover') => {
     return new Promise<Uint8Array>((resolve, reject) => {
       const worker = workerRef.current;
       if (!worker) {
@@ -234,7 +234,7 @@ export function useEngine() {
         return;
       }
       coverResolver.current = { resolve, reject };
-      worker.postMessage({ type: 'cover', plan, files: [...files], title } satisfies EngineRequest);
+      worker.postMessage({ type: 'cover', plan, files: [...files], title, cover } satisfies EngineRequest);
     });
   }, []);
 

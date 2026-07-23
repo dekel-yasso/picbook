@@ -15,7 +15,7 @@ interface BookProps {
   places: Map<string, string>;
   getFile: (id: string) => File | undefined;
   renderBook: (plan: BookPlan, files: Map<string, File>) => Promise<Uint8Array>;
-  renderCover: (plan: BookPlan, files: Map<string, File>, title: string) => Promise<Uint8Array>;
+  renderCover: (plan: BookPlan, files: Map<string, File>, title: string, cover?: 'softcover' | 'imagewrap') => Promise<Uint8Array>;
   tripName: string;
   progress: { done: number; total: number; running: boolean };
   onClose: () => void;
@@ -87,7 +87,7 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
     }
   }, [titled, getFile, renderBook]);
 
-  const generateCover = useCallback(async () => {
+  const generateCover = useCallback(async (type: 'softcover' | 'imagewrap') => {
     setError(null);
     setCover(null);
     setCoverBusy(true);
@@ -98,8 +98,8 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
       if (f) files.set(heroId, f);
     }
     try {
-      const bytes = await renderCover(titled, files, tripName);
-      setCover(new File([new Uint8Array(bytes)], 'picbook-cover.pdf', { type: 'application/pdf' }));
+      const bytes = await renderCover(titled, files, tripName, type);
+      setCover(new File([new Uint8Array(bytes)], `picbook-cover-${type}.pdf`, { type: 'application/pdf' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -219,11 +219,18 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
           {pdf && !progress.running && (
             <div className="flex gap-2">
               <button
-                onClick={generateCover}
+                onClick={() => generateCover('softcover')}
                 disabled={coverBusy}
                 className="flex-1 rounded-xl border border-neutral-500/50 py-2.5 text-xs font-semibold disabled:opacity-40"
               >
                 {coverBusy ? t('rendering') : t('renderCover')}
+              </button>
+              <button
+                onClick={() => generateCover('imagewrap')}
+                disabled={coverBusy}
+                className="flex-1 rounded-xl border border-neutral-500/50 py-2.5 text-xs font-semibold disabled:opacity-40"
+              >
+                {coverBusy ? t('rendering') : t('renderCoverHard')}
               </button>
               {cover && !coverBusy && (
                 <button

@@ -110,7 +110,7 @@ export type EngineRequest =
   | { type: 'embed' }
   | { type: 'renditions'; items: [string, File][] }
   | { type: 'book'; plan: BookPlan; files: [string, File][] }
-  | { type: 'cover'; plan: BookPlan; files: [string, File][]; title: string }
+  | { type: 'cover'; plan: BookPlan; files: [string, File][]; title: string; cover: import('./pdf').CoverType }
   | {
       type: 'clip';
       plan: ClipPlan;

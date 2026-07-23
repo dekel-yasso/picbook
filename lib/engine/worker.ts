@@ -62,7 +62,7 @@ self.onmessage = async (event: MessageEvent<EngineRequest>) => {
       const postTransfer = self.postMessage as (m: EngineEvent, t: Transferable[]) => void;
       postTransfer({ type: 'book-done', bytes: buffer }, [buffer]);
     } else if (msg.type === 'cover') {
-      const bytes = await renderCoverPdf(msg.plan, new Map(msg.files), msg.title);
+      const bytes = await renderCoverPdf(msg.plan, new Map(msg.files), msg.title, msg.cover);
       const buffer = bytes.buffer as ArrayBuffer;
       const postTransfer = self.postMessage as (m: EngineEvent, t: Transferable[]) => void;
       postTransfer({ type: 'cover-done', bytes: buffer }, [buffer]);

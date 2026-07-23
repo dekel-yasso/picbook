@@ -206,17 +206,43 @@ export async function renderBookPdf(
   return await doc.save();
 }
 
-// Softcover standard-paper spine widths sampled from Blurb's calculator;
-// linear interpolation between samples (±1pt is within binding tolerance).
-const SPINE_TABLE: [number, number][] = [
-  [20, 4],
-  [40, 9],
-  [60, 13],
-  [120, 22],
-  [200, 36],
-];
-function spineWidth(pages: number): number {
-  const t = SPINE_TABLE;
+export type CoverType = 'softcover' | 'imagewrap';
+
+// Cover geometry per binding, from Blurb's calculator (standard paper).
+// Spine widths are sampled points with linear interpolation between them
+// (±1pt is within binding tolerance). ImageWrap boards are larger than the
+// pages, with a 22pt wrap-bleed on all edges.
+const COVERS: Record<
+  CoverType,
+  { panelW: number; coverH: number; bleed: number; spineTable: [number, number][] }
+> = {
+  softcover: {
+    panelW: 486,
+    coverH: 495,
+    bleed: 9,
+    spineTable: [
+      [20, 4],
+      [40, 9],
+      [60, 13],
+      [120, 22],
+      [200, 36],
+    ],
+  },
+  imagewrap: {
+    panelW: 503,
+    // Blurb's calculator says 549 but their uploader validates 548 (7.611in);
+    // the uploader wins.
+    coverH: 548,
+    bleed: 22,
+    spineTable: [
+      [20, 33],
+      [100, 41],
+      [200, 54],
+    ],
+  },
+};
+
+function spineWidth(pages: number, t: [number, number][]): number {
   if (pages <= t[0][0]) return t[0][1];
   for (let i = 1; i < t.length; i++) {
     if (pages <= t[i][0]) {
@@ -238,6 +264,7 @@ export async function renderCoverPdf(
   plan: BookPlan,
   files: Map<string, File>,
   title: string,
+  cover: CoverType = 'softcover',
 ): Promise<Uint8Array> {
   const db = await getDB();
   const doc = await PDFDocument.create();
@@ -253,13 +280,14 @@ export async function renderCoverPdf(
     font = await doc.embedFont(StandardFonts.HelveticaBold);
   }
 
+  const geo = COVERS[cover];
   const pages = bookPdfPageCount(plan);
-  const spine = spineWidth(pages);
-  const W = 2 * TRIM_W + spine + 2 * BLEED;
-  const H = PAGE_H;
+  const spine = spineWidth(pages, geo.spineTable);
+  const W = 2 * geo.panelW + spine + 2 * geo.bleed;
+  const H = geo.coverH;
   const page = doc.addPage([W, H]);
-  const frontX = BLEED + TRIM_W + spine; // left edge of the front panel's trim
-  const frontW = TRIM_W + BLEED; // panel + outside bleed
+  const frontX = geo.bleed + geo.panelW + spine; // left edge of the front panel's trim
+  const frontW = geo.panelW + geo.bleed; // panel + outside bleed
 
   // Base: muted tone from the hero for back cover and spine.
   let tone: [number, number, number] = [0.16, 0.18, 0.22];
@@ -298,8 +326,8 @@ export async function renderCoverPdf(
   if (spine >= 14) {
     try {
       page.drawText(shapeBidi(title), {
-        x: BLEED + TRIM_W + spine / 2 + 3.5,
-        y: H - SAFE_OUT - 12,
+        x: geo.bleed + geo.panelW + spine / 2 + 3.5,
+        y: H - geo.bleed - SAFE_OUT - 12,
         size: Math.min(10, spine - 5),
         font,
         color: rgb(1, 1, 1),
@@ -311,8 +339,8 @@ export async function renderCoverPdf(
   }
 
   // Back panel: quiet — title small, PicBook credit.
-  drawTextSafe(page, title, font, 12, BLEED + SAFE_OUT, H / 2, 0.9);
-  drawTextSafe(page, 'PicBook', font, 8, BLEED + SAFE_OUT, H / 2 - 18, 0.55);
+  drawTextSafe(page, title, font, 12, geo.bleed + SAFE_OUT, H / 2, 0.9);
+  drawTextSafe(page, 'PicBook', font, 8, geo.bleed + SAFE_OUT, H / 2 - 18, 0.55);
 
   return await doc.save();
 }
