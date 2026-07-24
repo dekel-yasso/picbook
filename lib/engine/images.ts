@@ -1,20 +1,39 @@
 // Shared image re-encoding: decode anything the browser can, optionally
-// center-crop to a target aspect ratio (w/h), cap the long edge, re-encode as JPEG.
+// crop to a target aspect ratio (w/h), cap the long edge, re-encode as JPEG.
 
-export async function toJpegBlob(blob: Blob, maxDim: number, cropAspect?: number): Promise<Blob> {
+/** Normalized (0..1) region of the source image that a crop should keep in
+ *  frame — the detected faces' union bbox, when there are any. */
+export interface CropFocus {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export async function toJpegBlob(
+  blob: Blob,
+  maxDim: number,
+  cropAspect?: number,
+  focus?: CropFocus,
+): Promise<Blob> {
   const bitmap = await createImageBitmap(blob);
   let sx = 0;
   let sy = 0;
   let sw = bitmap.width;
   let sh = bitmap.height;
   if (cropAspect && cropAspect > 0) {
+    // Center the crop window on the focus region (if any) instead of the
+    // frame's geometric center, then clamp to bounds — keeps faces from
+    // being sliced off when the target aspect is narrower than the source.
+    const fcx = focus ? (focus.x + focus.w / 2) * bitmap.width : sw / 2;
+    const fcy = focus ? (focus.y + focus.h / 2) * bitmap.height : sh / 2;
     if (sw / sh > cropAspect) {
       const newSw = sh * cropAspect;
-      sx = (sw - newSw) / 2;
+      sx = Math.min(Math.max(0, fcx - newSw / 2), sw - newSw);
       sw = newSw;
     } else {
       const newSh = sw / cropAspect;
-      sy = (sh - newSh) / 2;
+      sy = Math.min(Math.max(0, fcy - newSh / 2), sh - newSh);
       sh = newSh;
     }
   }

@@ -114,6 +114,9 @@ export async function renderClip(
   const db = await getDB();
   // Land silhouettes for map segments (cached after first fetch; null offline).
   const land = plan.segments.some((s) => s.kind === 'map') ? await loadLand() : null;
+  // Face boxes, so Ken Burns pans/zooms don't slice faces off-frame.
+  const metas = new Map<string, PhotoMeta>();
+  for (const p of await db.getAll('photos')) metas.set(p.id, p);
 
   // Timeline with FADE_S overlap between consecutive segments.
   const timeline: Timed[] = [];
@@ -208,7 +211,7 @@ export async function renderClip(
         const zoomIn = idx % 2 === 0;
         const zoom = zoomIn ? 1.05 + 0.12 * p : 1.17 - 0.12 * p;
         const drift = 0.015 * (idx % 3 === 0 ? 1 : -1);
-        drawCover(ctx, bmp, zoom, drift * p, drift * 0.6 * p);
+        drawCover(ctx, bmp, zoom, drift * p, drift * 0.6 * p, metas.get(seg.id)?.faceBox);
       } else {
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, SIZE, SIZE);
@@ -348,11 +351,22 @@ function drawCover(
   zoom: number,
   panX: number,
   panY: number,
+  focus?: PhotoMeta['faceBox'],
 ) {
   const scale = Math.max(SIZE / bmp.width, SIZE / bmp.height) * zoom;
   const w = bmp.width * scale;
   const h = bmp.height * scale;
-  ctx.drawImage(bmp, (SIZE - w) / 2 + panX * SIZE, (SIZE - h) / 2 + panY * SIZE, w, h);
+  // Center the cover-fit on the focus region (if any), clamped so the image
+  // still fully covers the frame — keeps faces from sliding off-canvas.
+  let ox = (SIZE - w) / 2;
+  let oy = (SIZE - h) / 2;
+  if (focus) {
+    const fx = (focus.x + focus.w / 2) * w;
+    const fy = (focus.y + focus.h / 2) * h;
+    ox = Math.min(0, Math.max(SIZE - w, SIZE / 2 - fx));
+    oy = Math.min(0, Math.max(SIZE - h, SIZE / 2 - fy));
+  }
+  ctx.drawImage(bmp, ox + panX * SIZE, oy + panY * SIZE, w, h);
 }
 
 function drawTitleCard(ctx: OffscreenCanvasRenderingContext2D, seg: { text: string; sub?: string }) {

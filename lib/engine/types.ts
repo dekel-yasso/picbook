@@ -34,6 +34,9 @@ export interface PhotoMeta {
   theme?: string;
   /** Face summary from the on-device detector: count + eyes-open (0..1, 1 = everyone's eyes open). */
   faces?: { n: number; eyesOpen: number };
+  /** Union bounding box of detected faces (normalized 0..1, padded for headroom).
+   *  Crops keep this region in frame instead of blindly center-cropping. */
+  faceBox?: { x: number; y: number; w: number; h: number };
   /** Face-algorithm version; absent = faces not scanned yet. */
   facev?: number;
 }

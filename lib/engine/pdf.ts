@@ -79,8 +79,9 @@ export async function renderBookPdf(
     const raw = files.get(id) ?? (await db.get('renditions', id)) ?? (await db.get('thumbs', id));
     if (!raw) return null;
     const blob = asBlob(raw);
+    const focus = metas.get(id)?.faceBox;
     const jpegBytes = async (b: Blob) =>
-      new Uint8Array(await (await toJpegBlob(b, IMAGE_MAX, cropAspect)).arrayBuffer());
+      new Uint8Array(await (await toJpegBlob(b, IMAGE_MAX, cropAspect, focus)).arrayBuffer());
     try {
       return await doc.embedJpg(await jpegBytes(blob));
     } catch {
@@ -297,8 +298,9 @@ export async function renderCoverPdf(
     const raw = files.get(heroId) ?? (await db.get('renditions', heroId)) ?? (await db.get('thumbs', heroId));
     if (raw) {
       try {
+        const focus = (await db.get('photos', heroId))?.faceBox;
         const jpeg = new Uint8Array(
-          await (await toJpegBlob(asBlob(raw), IMAGE_MAX, frontW / H)).arrayBuffer(),
+          await (await toJpegBlob(asBlob(raw), IMAGE_MAX, frontW / H, focus)).arrayBuffer(),
         );
         const img = await doc.embedJpg(jpeg);
         page.drawImage(img, { x: frontX, y: 0, width: frontW, height: H });

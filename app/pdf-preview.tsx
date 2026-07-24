@@ -16,10 +16,15 @@ export function PdfPreview({ file }: { file: File }) {
     const urls: string[] = [];
     (async () => {
       const pdfjs = await import('pdfjs-dist');
-      pdfjs.GlobalWorkerOptions.workerPort = new Worker(
-        new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url),
-        { type: 'module' },
-      );
+      // GlobalWorkerOptions is a shared singleton — another concurrent pdf.js
+      // caller (e.g. the page-image export) may already have set a port;
+      // reassigning it mid-flight would hang both.
+      if (!pdfjs.GlobalWorkerOptions.workerPort) {
+        pdfjs.GlobalWorkerOptions.workerPort = new Worker(
+          new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url),
+          { type: 'module' },
+        );
+      }
       const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
       for (let i = 1; i <= doc.numPages; i++) {
         if (cancelled) break;

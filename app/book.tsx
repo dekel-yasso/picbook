@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { planBook } from '@/lib/engine/book';
 import { getDB } from '@/lib/engine/db';
+import { exportPagesAsZip } from '@/lib/engine/export-pages';
 import type { BookPlan, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
 import { PdfPreview } from './pdf-preview';
@@ -123,6 +124,25 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
   }, []);
   const save = useCallback(() => shareFile(pdf), [shareFile, pdf]);
 
+  // Rasterize each page to a JPEG and zip them — for print sites that only
+  // take individual images, not a ready PDF (most Israeli album editors).
+  const [imagesZip, setImagesZip] = useState<File | null>(null);
+  const [imagesBusy, setImagesBusy] = useState(false);
+  const exportImages = useCallback(async () => {
+    if (!pdf) return;
+    setError(null);
+    setImagesZip(null);
+    setImagesBusy(true);
+    try {
+      const blob = await exportPagesAsZip(pdf);
+      setImagesZip(new File([blob], 'picbook-pages.zip', { type: 'application/zip' }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setImagesBusy(false);
+    }
+  }, [pdf]);
+
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex items-center justify-between border-b border-neutral-500/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -238,6 +258,25 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
                   className="flex-1 rounded-xl bg-foreground py-2.5 text-xs font-semibold text-background"
                 >
                   {t('saveCover')}
+                </button>
+              )}
+            </div>
+          )}
+          {pdf && !progress.running && (
+            <div className="flex gap-2">
+              <button
+                onClick={exportImages}
+                disabled={imagesBusy}
+                className="flex-1 rounded-xl border border-neutral-500/50 py-2.5 text-xs font-semibold disabled:opacity-40"
+              >
+                {imagesBusy ? t('rendering') : t('exportImages')}
+              </button>
+              {imagesZip && !imagesBusy && (
+                <button
+                  onClick={() => shareFile(imagesZip)}
+                  className="flex-1 rounded-xl bg-foreground py-2.5 text-xs font-semibold text-background"
+                >
+                  {t('saveImagesZip', { size: (imagesZip.size / 1024 / 1024).toFixed(1) })}
                 </button>
               )}
             </div>

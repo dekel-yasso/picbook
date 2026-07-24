@@ -148,6 +148,8 @@ export const STRINGS = {
     musicSearchNone: 'No tracks found — try different words (English works best)',
     renderCover: 'Cover — Softcover',
     renderCoverHard: 'Cover — Hardcover',
+    exportImages: 'Export pages as images',
+    saveImagesZip: 'Save images ({size}MB)',
     saveCover: 'Save cover PDF',
     musicFailed: '⚠ The music track could not be included — the clip was rendered silent. Try re-rendering.',
     // account
@@ -274,6 +276,8 @@ export const STRINGS = {
     musicSearchNone: 'לא נמצאו קטעים — נסו מילים אחרות (עדיף באנגלית)',
     renderCover: 'כריכה רכה',
     renderCoverHard: 'כריכה קשה',
+    exportImages: 'ייצוא עמודים כתמונות',
+    saveImagesZip: 'שמירת תמונות ({size}MB)',
     saveCover: 'שמירת כריכה PDF',
     musicFailed: '⚠ לא הצלחנו לכלול את המוזיקה — הקליפ נוצר ללא קול. נסו ליצור שוב.',
     accountTitle: 'חשבון וסנכרון',
