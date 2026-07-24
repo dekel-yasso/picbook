@@ -23,7 +23,6 @@ const TRIM_W = 486;
 const TRIM_H = 477;
 const SAFE_OUT = 18;
 const SAFE_BIND = 36;
-const MIN_PAGES = 20;
 const GUTTER = 12;
 const FRAME = 6;
 // Collage feel: each print grows past its slot (overlapping neighbours' corners)
@@ -45,12 +44,9 @@ function safeBox(pageIndex1: number): Cell {
   };
 }
 
-/** Interior PDF page count including the even/minimum padding Blurb requires. */
+/** Interior PDF page count: chapter title pages + collage pages, as planned. */
 export function bookPdfPageCount(plan: BookPlan): number {
-  const raw = plan.chapters.reduce((n, c) => n + 1 + c.pages.length, 0);
-  let padded = Math.max(MIN_PAGES, raw);
-  if (padded % 2) padded++;
-  return padded;
+  return plan.chapters.reduce((n, c) => n + 1 + c.pages.length, 0);
 }
 
 export async function renderBookPdf(
@@ -193,16 +189,9 @@ export async function renderBookPdf(
     variant++;
   }
 
-  // Blurb requires an even page count and at least MIN_PAGES pages.
-  const target = bookPdfPageCount(plan);
-  while (doc.getPageCount() < target) {
-    const filler = doc.addPage([PAGE_W, PAGE_H]);
-    filler.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: rgb(0.97, 0.96, 0.94) });
-    if (doc.getPageCount() === target) {
-      drawTextSafe(filler, 'PicBook', font, 10, PAGE_W / 2 - 20, PAGE_H / 2, 0.62);
-    }
-  }
-
+  // No forced page-count padding: the PDF ends where the real content ends.
+  // Blurb's minimum/even-page requirement can be reintroduced as an explicit
+  // print-mode option if needed later.
   return await doc.save();
 }
 
