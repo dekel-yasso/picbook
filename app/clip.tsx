@@ -35,6 +35,9 @@ const ORIGINALS = [
   { key: 'mywife', en: 'My Wife Is the Best', he: 'My Wife Is the Best' },
   { key: 'outoftokens', en: 'Out of Tokens', he: 'Out of Tokens' },
   { key: 'weathercoming', en: 'Weather Coming', he: 'Weather Coming' },
+  { key: 'shelter', en: 'Shelter', he: 'Shelter' },
+  { key: 'sloworbit', en: 'Slow Orbit', he: 'Slow Orbit' },
+  { key: 'betterdays', en: 'Better Days Are Coming', he: 'Better Days Are Coming' },
 ] as const;
 
 // Built-in soundtrack library: public-domain recordings (Musopen), trimmed to
