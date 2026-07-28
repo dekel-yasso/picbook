@@ -42,6 +42,7 @@ const ORIGINALS = [
   { key: 'slowburn', en: 'Slow Burn', he: 'Slow Burn' },
   { key: 'spyglass', en: 'Spyglass', he: 'Spyglass' },
   { key: 'wideeyed', en: 'Wide Eyed', he: 'Wide Eyed' },
+  { key: 'quiethouse', en: 'Quiet House', he: 'Quiet House' },
 ] as const;
 
 // Built-in soundtrack library: public-domain recordings (Musopen), trimmed to
