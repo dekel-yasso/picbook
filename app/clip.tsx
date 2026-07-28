@@ -38,6 +38,10 @@ const ORIGINALS = [
   { key: 'shelter', en: 'Shelter', he: 'Shelter' },
   { key: 'sloworbit', en: 'Slow Orbit', he: 'Slow Orbit' },
   { key: 'betterdays', en: 'Better Days Are Coming', he: 'Better Days Are Coming' },
+  { key: 'sleightofhand', en: 'Sleight of Hand', he: 'Sleight of Hand' },
+  { key: 'slowburn', en: 'Slow Burn', he: 'Slow Burn' },
+  { key: 'spyglass', en: 'Spyglass', he: 'Spyglass' },
+  { key: 'wideeyed', en: 'Wide Eyed', he: 'Wide Eyed' },
 ] as const;
 
 // Built-in soundtrack library: public-domain recordings (Musopen), trimmed to
