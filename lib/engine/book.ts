@@ -46,11 +46,19 @@ export function planBook(
     photos: PhotoMeta[];
     place?: string;
   }
+  // Only merge when the trip actually needs it: if every day can already
+  // afford its floor within the budget, keep one chapter per day — a short
+  // one-city trip should still read as Day 1 / Day 2 / Day 3, not collapse
+  // into a single chapter just because the place matches throughout.
+  const clampedTarget = Math.min(target, sorted.length);
+  const perDayFloorSum = days.reduce((s, [, ps]) => s + Math.min(ps.length, DAY_FLOOR), 0);
+  const needsMerging = perDayFloorSum > clampedTarget;
+
   const groups: DayGroup[] = [];
   for (const [key, photos] of days) {
     const place = places?.get(key) || undefined;
     const prev = groups[groups.length - 1];
-    if (place && prev?.place === place) {
+    if (needsMerging && place && prev?.place === place) {
       prev.keys.push(key);
       prev.photos.push(...photos);
     } else {
@@ -60,7 +68,7 @@ export function planBook(
 
   const quotas = allocate(
     groups.map((g) => g.photos.length),
-    Math.min(target, sorted.length),
+    clampedTarget,
   );
 
   let dayNumber = 0;
