@@ -35,13 +35,39 @@ export function planBook(
   }
 
   const days = [...byDay.entries()];
-  const quotas = allocate(days.map(([, ps]) => ps.length), Math.min(target, sorted.length));
+
+  // Long trips (a week+) read poorly as one chapter per calendar day — a
+  // multi-day stay in one place ends up with a title card per day and one
+  // starved photo each. Merge consecutive days that share the same place
+  // into a single date-range chapter instead; single-city or no-GPS trips
+  // are unaffected since no two consecutive days ever share a place there.
+  interface DayGroup {
+    keys: string[];
+    photos: PhotoMeta[];
+    place?: string;
+  }
+  const groups: DayGroup[] = [];
+  for (const [key, photos] of days) {
+    const place = places?.get(key) || undefined;
+    const prev = groups[groups.length - 1];
+    if (place && prev?.place === place) {
+      prev.keys.push(key);
+      prev.photos.push(...photos);
+    } else {
+      groups.push({ keys: [key], photos, place });
+    }
+  }
+
+  const quotas = allocate(
+    groups.map((g) => g.photos.length),
+    Math.min(target, sorted.length),
+  );
 
   let dayNumber = 0;
   const chapters: BookChapter[] = [];
-  for (let i = 0; i < days.length; i++) {
+  for (let i = 0; i < groups.length; i++) {
     dayNumber++;
-    const [key, photos] = days[i];
+    const { keys, photos, place } = groups[i];
     // User's must-haves always make it in — even on days whose quota is 0.
     const pinned = pinnedIds ? photos.filter((p) => pinnedIds.has(p.id)) : [];
     const quota = Math.max(quotas[i], pinned.length);
@@ -51,7 +77,7 @@ export function planBook(
       seeds: pinned,
     }).sort((a, b) => takenTime(a) - takenTime(b));
 
-    // Hero: sharpest well-exposed shot of the day.
+    // Hero: sharpest well-exposed shot of the chapter.
     let hero = chosen[0];
     let heroScore = -Infinity;
     for (const p of chosen) {
@@ -61,17 +87,23 @@ export function planBook(
         hero = p;
       }
     }
-    const place = places?.get(key);
     const rawScene = sceneCaption(chosen);
     const scene = rawScene && lang === 'he' ? (SCENE_CAPTIONS_HE[rawScene] ?? rawScene) : rawScene;
     const dayWord = lang === 'he' ? 'יום' : 'Day';
+    const spansMultipleDays = keys.length > 1;
+    const dateLabel = spansMultipleDays
+      ? formatDayRange(takenTime(photos[0]), takenTime(photos[photos.length - 1]), lang)
+      : formatDay(takenTime(photos[0]), lang);
     chapters.push({
-      key,
-      title: place
-        ? `${dayWord} ${dayNumber} — ${place}`
-        : `${dayWord} ${dayNumber} — ${formatDay(takenTime(photos[0]), lang)}`,
+      key: keys[0],
+      title:
+        place && spansMultipleDays
+          ? `${dateLabel} — ${place}`
+          : place
+            ? `${dayWord} ${dayNumber} — ${place}`
+            : `${dayWord} ${dayNumber} — ${dateLabel}`,
       caption:
-        [place ? formatDay(takenTime(photos[0]), lang) : null, scene].filter(Boolean).join(' · ') ||
+        [!spansMultipleDays && place ? dateLabel : null, scene].filter(Boolean).join(' · ') ||
         undefined,
       heroId: hero.id,
       pages: paginate(chosen.filter((p) => p.id !== hero.id).map((p) => p.id)),
@@ -171,4 +203,13 @@ function formatDay(t: number, lang: Lang): string {
     month: 'short',
     day: 'numeric',
   });
+}
+
+/** "Jul 5 – Jul 9" for a multi-day chapter spent in one place. */
+function formatDayRange(t0: number, t1: number, lang: Lang): string {
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  const locale = lang === 'he' ? 'he-IL' : 'en-US';
+  const a = new Date(t0).toLocaleDateString(locale, opts);
+  const b = new Date(t1).toLocaleDateString(locale, opts);
+  return `${a} – ${b}`;
 }
