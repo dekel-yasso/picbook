@@ -16,9 +16,11 @@ export async function loadTrips(): Promise<Trip[]> {
   return trips.sort((a, b) => a.createdAt - b.createdAt);
 }
 
-export async function createTrip(name: string): Promise<Trip> {
+/** `id` lets a caller know the trip's id before the write settles (e.g. to
+ *  focus an inline rename field the instant the card appears). */
+export async function createTrip(name: string, id = crypto.randomUUID()): Promise<Trip> {
   const trip: Trip = {
-    id: crypto.randomUUID(),
+    id,
     name: name.trim() || 'New trip',
     createdAt: Date.now(),
     updatedAt: Date.now(),

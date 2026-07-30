@@ -1,14 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   ChevronDown,
   ChevronRight,
   Cloud,
   LayoutGrid,
-  Pencil,
   Trash2,
   X,
 } from 'lucide-react';
@@ -28,8 +28,12 @@ import { themeLabel } from '@/lib/i18n-strings';
 import { AccountOverlay } from './account';
 import { BookOverlay } from './book';
 import { ClipOverlay } from './clip';
+import { BurstReviewOverlay } from './burst-review';
+import { Onboarding } from './onboarding';
 import { ReviewOverlay, type ReviewEntry } from './review';
 import { Thumb } from './thumb';
+import { TripSwitcher, type TripSummary } from './trip-switcher';
+import { UNDO_MS, UndoToast, type PendingAction } from './undo-toast';
 import { UpdateBanner } from './update-banner';
 
 export default function Home() {
@@ -56,12 +60,57 @@ export default function Home() {
   const [bookOpen, setBookOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [tripSwitcherOpen, setTripSwitcherOpen] = useState(false);
   const [hasDirPicker, setHasDirPicker] = useState(false);
   const [canShare, setCanShare] = useState(false);
   const [decisions, setDecisions] = useState<Map<string, Decision>>(new Map());
   const [view, setView] = useState<'all' | 'keepers'>('all');
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [burstClusterId, setBurstClusterId] = useState<string | null>(null);
+  // Opening a photo from a multi-photo cluster offers burst mode (one screen
+  // per cluster) instead of the usual one-photo-at-a-time reviewer.
+  const openPhoto = useCallback((photo: PhotoMeta, cluster: Cluster) => {
+    if (cluster.photos.length > 1) setBurstClusterId(cluster.id);
+    else setReviewing(photo.id);
+  }, []);
+
+  // Undo-toast pattern for delete photo/day/trip: the action hides the record
+  // from the UI immediately; only committed to IndexedDB (and forgotten by
+  // the engine) once the toast's countdown expires or a new delete supersedes it.
+  const [hiddenPhotoIds, setHiddenPhotoIds] = useState<Set<string>>(new Set());
+  const [hiddenTripIds, setHiddenTripIds] = useState<Set<string>>(new Set());
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const pendingRef = useRef<PendingAction | null>(null);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitPending = useCallback(() => {
+    const p = pendingRef.current;
+    if (!p) return;
+    pendingRef.current = null;
+    setPending(null);
+    if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = null;
+    p.commit();
+  }, []);
+  const startPending = useCallback(
+    (next: PendingAction) => {
+      if (pendingRef.current) commitPending(); // one toast at a time — commit the previous first
+      pendingRef.current = next;
+      setPending(next);
+      pendingTimerRef.current = setTimeout(commitPending, UNDO_MS);
+    },
+    [commitPending],
+  );
+  const undoPending = useCallback(() => {
+    const p = pendingRef.current;
+    if (!p) return;
+    if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = null;
+    pendingRef.current = null;
+    setPending(null);
+    p.undo();
+  }, []);
+  useEffect(() => () => { if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current); }, []);
 
   // Collapsed day sections — faster navigation through huge trips. Collapsed
   // days render no thumbnails at all, which also lightens the page.
@@ -115,77 +164,145 @@ export default function Home() {
   }, []);
   // Day labels are date strings and can collide across trips — start fresh.
   useEffect(() => setCollapsedDays(new Set()), [activeTripId]);
-  const switchTrip = useCallback(async (value: string) => {
-    if (value === '__new') {
-      const name = window.prompt(t('tripNamePrompt'));
-      if (!name) return;
-      const trip = await createTrip(name);
-      setTrips(await loadTrips());
-      setActiveTripId(trip.id);
-      localStorage.setItem('picbook-trip', trip.id);
-      return;
-    }
-    setActiveTripId(value);
-    localStorage.setItem('picbook-trip', value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const switchTrip = useCallback((id: string) => {
+    setActiveTripId(id);
+    localStorage.setItem('picbook-trip', id);
+  }, []);
+  // Creates the trip optimistically (shows up in the switcher immediately,
+  // persisted in the background) and returns its id so the card can jump
+  // straight into the inline rename field — no prompt().
+  const createNewTrip = useCallback(() => {
+    const id = crypto.randomUUID();
+    const trip: Trip = { id, name: t('newTripBtn'), createdAt: Date.now(), updatedAt: Date.now() };
+    setTrips((prev) => [...prev, trip]);
+    createTrip(trip.name, id).catch(() => {});
+    return id;
   }, [t]);
-  const renameActive = useCallback(async () => {
-    const current = trips.find((tr) => tr.id === activeTripId);
-    const name = window.prompt(t('renameTrip'), current?.name ?? '');
-    if (!name) return;
-    await renameTrip(activeTripId, name);
-    setTrips(await loadTrips());
-  }, [trips, activeTripId, t]);
+  const renameTripById = useCallback((id: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setTrips((prev) => prev.map((tr) => (tr.id === id ? { ...tr, name: trimmed } : tr)));
+    renameTrip(id, trimmed).catch(() => {});
+  }, []);
 
-  const deleteActiveTrip = useCallback(async () => {
-    const current = trips.find((tr) => tr.id === activeTripId);
-    const count = photos.filter((p) => (p.tripId ?? DEFAULT_TRIP_ID) === activeTripId).length;
-    if (!window.confirm(t('deleteTripConfirm', { name: current?.name ?? '', n: count }))) {
-      return;
-    }
-    const removed = await deleteTrip(activeTripId);
-    forgetPhotos(removed);
-    setDecisions((prev) => {
-      const next = new Map(prev);
-      for (const id of removed) next.delete(id);
-      return next;
-    });
-    deleteTripRemote(activeTripId); // best-effort; no-op when signed out
-    const all = await loadTrips(); // recreates the default trip if needed
-    setTrips(all);
-    setActiveTripId(all[0].id);
-    localStorage.setItem('picbook-trip', all[0].id);
-  }, [trips, activeTripId, photos, forgetPhotos]);
-
-  const removePhoto = useCallback(
-    async (id: string) => {
-      await deletePhoto(id);
-      forgetPhotos([id]);
-      setDecisions((prev) => {
-        if (!prev.has(id)) return prev;
-        const next = new Map(prev);
-        next.delete(id);
-        return next;
+  // Deletes any trip (not just the active one — the trip switcher can swipe-delete
+  // a background trip too). Hides it immediately; only actually removed on commit.
+  const requestDeleteTrip = useCallback(
+    (tripId: string) => {
+      const target = trips.find((tr) => tr.id === tripId);
+      const wasActive = tripId === activeTripId;
+      const fallback = trips.find((tr) => tr.id !== tripId);
+      setHiddenTripIds((prev) => new Set(prev).add(tripId));
+      if (wasActive && fallback) {
+        setActiveTripId(fallback.id);
+        localStorage.setItem('picbook-trip', fallback.id);
+      }
+      startPending({
+        message: t('toastTripDeleted', { name: target?.name ?? '' }),
+        commit: async () => {
+          const removed = await deleteTrip(tripId);
+          forgetPhotos(removed);
+          setDecisions((prev) => {
+            const next = new Map(prev);
+            for (const id of removed) next.delete(id);
+            return next;
+          });
+          deleteTripRemote(tripId); // best-effort; no-op when signed out
+          const all = await loadTrips(); // recreates the default trip if needed
+          setTrips(all);
+          setHiddenTripIds((prev) => {
+            const next = new Set(prev);
+            next.delete(tripId);
+            return next;
+          });
+          if (!all.some((tr) => tr.id === activeTripId)) {
+            setActiveTripId(all[0].id);
+            localStorage.setItem('picbook-trip', all[0].id);
+          }
+        },
+        undo: () => {
+          setHiddenTripIds((prev) => {
+            const next = new Set(prev);
+            next.delete(tripId);
+            return next;
+          });
+          if (wasActive) {
+            setActiveTripId(tripId);
+            localStorage.setItem('picbook-trip', tripId);
+          }
+        },
       });
     },
-    [forgetPhotos],
+    [trips, activeTripId, startPending, t],
+  );
+  const removePhoto = useCallback(
+    (id: string) => {
+      setHiddenPhotoIds((prev) => new Set(prev).add(id));
+      startPending({
+        message: t('toastPhotoDeleted'),
+        commit: async () => {
+          await deletePhoto(id);
+          forgetPhotos([id]);
+          setDecisions((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Map(prev);
+            next.delete(id);
+            return next;
+          });
+          setHiddenPhotoIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        },
+        undo: () => {
+          setHiddenPhotoIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        },
+      });
+    },
+    [startPending, forgetPhotos, t],
   );
 
   // Bulk-remove a whole day (e.g. photos accidentally imported from another trip).
   const removeDay = useCallback(
-    async (label: string, dayClusters: Cluster[]) => {
+    (label: string, dayClusters: Cluster[]) => {
       const ids = dayClusters.flatMap((c) => c.photos.map((p) => p.id));
       if (!ids.length) return;
-      if (!window.confirm(t('deleteDayConfirm', { n: ids.length, day: label }))) return;
-      await deletePhotos(ids);
-      forgetPhotos(ids);
-      setDecisions((prev) => {
-        const next = new Map(prev);
-        for (const id of ids) next.delete(id);
+      setHiddenPhotoIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
         return next;
       });
+      startPending({
+        message: t('toastDayDeleted', { day: label, n: ids.length }),
+        commit: async () => {
+          await deletePhotos(ids);
+          forgetPhotos(ids);
+          setDecisions((prev) => {
+            const next = new Map(prev);
+            for (const id of ids) next.delete(id);
+            return next;
+          });
+          setHiddenPhotoIds((prev) => {
+            const next = new Set(prev);
+            for (const id of ids) next.delete(id);
+            return next;
+          });
+        },
+        undo: () => {
+          setHiddenPhotoIds((prev) => {
+            const next = new Set(prev);
+            for (const id of ids) next.delete(id);
+            return next;
+          });
+        },
+      });
     },
-    [forgetPhotos, t],
+    [startPending, forgetPhotos, t],
   );
 
   const addPhotos = useCallback(async () => {
@@ -196,6 +313,19 @@ export default function Home() {
       setReceiving(false);
     }
   }, [ingest, activeTripId]);
+
+  // First-run onboarding — shown once, guarded by a localStorage flag.
+  // null = not checked yet (nothing renders), so there's no flash on load.
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+  useEffect(() => setOnboarded(localStorage.getItem('picbook-onboarded') === '1'), []);
+  const dismissOnboarding = useCallback(() => {
+    localStorage.setItem('picbook-onboarded', '1');
+    setOnboarded(true);
+  }, []);
+  const finishOnboarding = useCallback(() => {
+    dismissOnboarding();
+    addPhotos();
+  }, [dismissOnboarding, addPhotos]);
 
   const addFolder = useCallback(async () => {
     setReceiving(true);
@@ -243,7 +373,8 @@ export default function Home() {
 
   // Freeze the page behind full-screen overlays: iOS positions fixed overlays
   // against a scrolled/momentum viewport otherwise, opening them half off-screen.
-  const overlayOpen = !!reviewing || bookOpen || clipOpen || accountOpen;
+  const overlayOpen =
+    !!reviewing || !!burstClusterId || bookOpen || clipOpen || accountOpen || tripSwitcherOpen || onboarded === false;
   useEffect(() => {
     if (!overlayOpen) return;
     const y = window.scrollY;
@@ -264,8 +395,40 @@ export default function Home() {
   }, [overlayOpen]);
 
   const tripPhotos = useMemo(
-    () => photos.filter((p) => (p.tripId ?? DEFAULT_TRIP_ID) === activeTripId),
-    [photos, activeTripId],
+    () =>
+      photos.filter(
+        (p) => (p.tripId ?? DEFAULT_TRIP_ID) === activeTripId && !hiddenPhotoIds.has(p.id),
+      ),
+    [photos, activeTripId, hiddenPhotoIds],
+  );
+  const visibleTrips = useMemo(
+    () => trips.filter((tr) => !hiddenTripIds.has(tr.id)),
+    [trips, hiddenTripIds],
+  );
+  // Summary card data for the trip switcher — computed per trip, not just the
+  // active one, so every card can show its own cover/dates/counts.
+  const tripSummaries = useMemo<TripSummary[]>(
+    () =>
+      visibleTrips.map((tr) => {
+        const tripPh = photos.filter((p) => (p.tripId ?? DEFAULT_TRIP_ID) === tr.id);
+        const cl = clusterPhotos(tripPh);
+        const photoCount = cl.reduce((n, c) => n + c.photos.length, 0);
+        const keeperCount = cl.flatMap((c) => c.photos.filter((p) => isKeeper(p, c, decisions))).length;
+        const reviewed = tripPh.some((p) => decisions.has(p.id));
+        let dateRange: string | null = null;
+        if (tripPh.length) {
+          const times = tripPh.map(takenTime);
+          const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+          const locale = lang === 'he' ? 'he-IL' : 'en-US';
+          const a = new Date(Math.min(...times)).toLocaleDateString(locale, opts).toUpperCase();
+          const b = new Date(Math.max(...times)).toLocaleDateString(locale, opts).toUpperCase();
+          dateRange = a === b ? a : `${a} – ${b}`;
+        }
+        const first = cl[0];
+        const coverId = first ? (first.photos.length > 1 ? (first.bestId ?? first.photos[0].id) : first.photos[0].id) : null;
+        return { id: tr.id, name: tr.name, dateRange, photoCount, keeperCount, reviewed, coverId };
+      }),
+    [visibleTrips, photos, decisions, lang],
   );
 
   const clusters = useMemo(() => clusterPhotos(tripPhotos), [tripPhotos]);
@@ -279,6 +442,9 @@ export default function Home() {
     }
     return [...byDay.entries()];
   }, [clusters]);
+  // Burst review walks only multi-photo clusters, in grid order, across the
+  // whole trip — independent of the day it's opened from.
+  const burstClusters = useMemo(() => days.flatMap(([, dcs]) => dcs).filter((c) => c.photos.length > 1), [days]);
 
   const keepers = useMemo(
     () => clusters.flatMap((c) => c.photos.filter((p) => isKeeper(p, c, decisions))),
@@ -325,6 +491,32 @@ export default function Home() {
   const readyCount = clusters.reduce((n, c) => n + c.photos.length, 0);
   const unsupported = tripPhotos.length - readyCount;
   const busy = progress.running || analyzeProgress.running;
+
+  // Review progress: "reviewed" = an explicit decision exists — an honest,
+  // simple metric rather than trying to infer intent from auto-picks.
+  const reviewedCount = useMemo(
+    () => clusters.reduce((n, c) => n + c.photos.filter((p) => decisions.has(p.id)).length, 0),
+    [clusters, decisions],
+  );
+  const reviewedPct = readyCount ? Math.round((100 * reviewedCount) / readyCount) : 0;
+  const nextUndecidedId = useMemo(() => {
+    for (const [, dayClusters] of days) {
+      for (const c of dayClusters) {
+        for (const p of c.photos) {
+          if (!decisions.has(p.id)) return p.id;
+        }
+      }
+    }
+    return null;
+  }, [days, decisions]);
+  const goToNextUndecided = useCallback(() => {
+    if (!nextUndecidedId) return;
+    // The jump should always find the target photo, regardless of the
+    // current view/theme filter narrowing what the grid currently shows.
+    setView('all');
+    setThemeFilter(null);
+    setReviewing(nextUndecidedId);
+  }, [nextUndecidedId]);
 
   // The full-screen reviewer browses this sequence — everything currently
   // visible in the grid, in grid order.
@@ -413,7 +605,9 @@ export default function Home() {
     <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 p-4 pb-0 pt-0">
       {/* Hidden (not just covered) while an overlay is up: iOS repaints fixed layers late on rotation, flashing the page behind the viewer. */}
       <div
-        className={`flex flex-1 flex-col gap-4 ${reviewing || bookOpen || clipOpen || accountOpen ? 'invisible' : ''}`}
+        className={`flex flex-1 flex-col gap-4 ${
+          reviewing || burstClusterId || bookOpen || clipOpen || accountOpen || onboarded === false ? 'invisible' : ''
+        }`}
       >
       {/* Sticky command bar: actions + live status stay reachable while scrolling. */}
       <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-3 bg-[rgba(243,242,242,.96)] px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur">
@@ -442,41 +636,12 @@ export default function Home() {
       <div className="-mx-4 border-t-2 border-ink" />
 
       <div className="flex items-center gap-2">
-        <div className="relative min-w-0 flex-1">
-          <select
-            value={activeTripId}
-            onChange={(e) => switchTrip(e.target.value)}
-            aria-label="Trip"
-            className="w-full appearance-none border-2 border-ink bg-white px-3 py-2 text-[14px] font-semibold text-ink"
-          >
-            {trips.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-            <option value="__new">{t('newTrip')}</option>
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2 text-ink"
-            size={16}
-            strokeWidth={2.25}
-          />
-        </div>
         <button
-          onClick={renameActive}
-          aria-label={t('renameTrip')}
-          title={t('renameTrip')}
-          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center border-2 border-ink text-ink"
+          onClick={() => setTripSwitcherOpen(true)}
+          className="flex min-w-0 flex-1 items-center justify-between border-2 border-ink bg-white px-3 py-2 text-[14px] font-semibold text-ink"
         >
-          <Pencil size={16} strokeWidth={2.25} />
-        </button>
-        <button
-          onClick={deleteActiveTrip}
-          aria-label={t('deleteTrip')}
-          title={t('deleteTrip')}
-          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center border-2 border-ink text-ink"
-        >
-          <Trash2 size={16} strokeWidth={2.25} />
+          <span className="truncate">{trips.find((tr) => tr.id === activeTripId)?.name ?? ''}</span>
+          <ChevronDown className="shrink-0 text-ink" size={16} strokeWidth={2.25} />
         </button>
         <button
           onClick={() => setAccountOpen(true)}
@@ -581,12 +746,40 @@ export default function Home() {
 
       {tripPhotos.length > 0 ? (
         <>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {t('stats', { photos: readyCount, keepers: keepers.length, culled: readyCount - keepers.length })}
-              {unsupported > 0 && t('statsUnsupported', { n: unsupported })}
-            </p>
-            <div className="flex border-2 border-ink text-xs">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+            {t('stats', { photos: readyCount, keepers: keepers.length, culled: readyCount - keepers.length })}
+            {unsupported > 0 && t('statsUnsupported', { n: unsupported })}
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                {t('reviewedCount', { done: reviewedCount, total: readyCount })}
+              </span>
+              <span className="text-[11px] font-bold text-accent">{reviewedPct}%</span>
+            </div>
+            <div className="h-1.5 w-full bg-track">
+              <div
+                className="h-full bg-accent transition-[width] duration-200"
+                style={{ width: `${reviewedPct}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goToNextUndecided}
+              disabled={!nextUndecidedId}
+              className="flex flex-1 items-center justify-between bg-accent px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-45"
+            >
+              {nextUndecidedId ? t('nextUndecided') : t('allReviewed')}
+              {lang === 'he' ? (
+                <ArrowLeft size={15} strokeWidth={2.5} />
+              ) : (
+                <ArrowRight size={15} strokeWidth={2.5} />
+              )}
+            </button>
+            <div className="flex shrink-0 border-2 border-ink text-xs">
               {(['all', 'keepers'] as const).map((v, i) => (
                 <button
                   key={v}
@@ -638,6 +831,12 @@ export default function Home() {
             const dayCount = cells
               ? cells.length
               : dayClusters.reduce((n, c) => n + c.photos.length, 0);
+            const dayTotal = dayClusters.reduce((n, c) => n + c.photos.length, 0);
+            const dayReviewed = dayClusters.reduce(
+              (n, c) => n + c.photos.filter((p) => decisions.has(p.id)).length,
+              0,
+            );
+            const dayDone = dayTotal > 0 && dayReviewed === dayTotal;
             return (
               <section
                 key={label}
@@ -680,8 +879,19 @@ export default function Home() {
                     )}
                   </button>
                   {!collapsed && (
-                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                      {t('dayPhotos', { n: dayCount })}
+                    <span
+                      className={`shrink-0 text-[11px] font-semibold uppercase tracking-wide ${
+                        dayDone ? 'flex items-center gap-1 text-accent' : 'text-muted'
+                      }`}
+                    >
+                      {dayDone ? (
+                        <>
+                          <Check size={12} strokeWidth={3} />
+                          {t('dayDone')}
+                        </>
+                      ) : (
+                        t('dayReviewed', { done: dayReviewed, total: dayTotal })
+                      )}
                     </span>
                   )}
                   <button
@@ -693,6 +903,14 @@ export default function Home() {
                     <Trash2 size={14} strokeWidth={2.25} />
                   </button>
                 </div>
+                {!collapsed && dayTotal > 0 && (
+                  <div className="-mt-1 h-[3px] w-full bg-track">
+                    <div
+                      className="h-full bg-accent transition-[width] duration-200"
+                      style={{ width: `${Math.round((100 * dayReviewed) / dayTotal)}%` }}
+                    />
+                  </div>
+                )}
                 {!collapsed && (
                 <div className="flex flex-wrap gap-1.5">
                   {cells
@@ -703,7 +921,7 @@ export default function Home() {
                           cluster={cluster}
                           decisions={decisions}
                           dim={false}
-                          onOpen={() => setReviewing(photo.id)}
+                          onOpen={() => openPhoto(photo, cluster)}
                         />
                       ))
                     : dayClusters.map((c) =>
@@ -714,7 +932,7 @@ export default function Home() {
                             cluster={c}
                             decisions={decisions}
                             dim
-                            onOpen={() => setReviewing(c.photos[0].id)}
+                            onOpen={() => openPhoto(c.photos[0], c)}
                           />
                         ) : (
                           <div
@@ -728,7 +946,7 @@ export default function Home() {
                                 cluster={c}
                                 decisions={decisions}
                                 dim
-                                onOpen={() => setReviewing(p.id)}
+                                onOpen={() => openPhoto(p, c)}
                               />
                             ))}
                           </div>
@@ -808,6 +1026,23 @@ export default function Home() {
 
       </div>
 
+      {onboarded === false && <Onboarding onSkip={dismissOnboarding} onFinish={finishOnboarding} />}
+
+      {tripSwitcherOpen && (
+        <TripSwitcher
+          trips={tripSummaries}
+          activeTripId={activeTripId}
+          onSelect={(id) => {
+            switchTrip(id);
+            setTripSwitcherOpen(false);
+          }}
+          onRename={renameTripById}
+          onCreate={createNewTrip}
+          onDelete={requestDeleteTrip}
+          onClose={() => setTripSwitcherOpen(false)}
+        />
+      )}
+
       {accountOpen && (
         <AccountOverlay
           onClose={() => setAccountOpen(false)}
@@ -857,6 +1092,17 @@ export default function Home() {
           getFile={getFile}
         />
       )}
+
+      {burstClusterId && burstClusters.length > 0 && (
+        <BurstReviewOverlay
+          clusters={burstClusters}
+          startClusterId={burstClusterId}
+          onDecide={decide}
+          onClose={() => setBurstClusterId(null)}
+        />
+      )}
+
+      {pending && <UndoToast pending={pending} onUndo={undoPending} />}
     </main>
   );
 }

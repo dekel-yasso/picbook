@@ -2,13 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
-import { planBook } from '@/lib/engine/book';
+import { applyBookOverrides, planBook } from '@/lib/engine/book';
+import { takenTime } from '@/lib/engine/cluster';
 import { getDB } from '@/lib/engine/db';
 import { exportPagesAsZip } from '@/lib/engine/export-pages';
 import type { BookPlan, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
 import { PdfPreview } from './pdf-preview';
 import { Thumb } from './thumb';
+
+interface SwapTarget {
+  chapterKey: string;
+  slotIndex: number;
+  photoId: string;
+  pageLabel: number | 'hero';
+}
 
 interface BookProps {
   tripId: string;
@@ -28,12 +36,15 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
   const maxPhotos = keepers.length;
   const [target, setTarget] = useState(Math.min(48, maxPhotos));
   const [titles, setTitles] = useState<Record<string, string>>({});
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [swap, setSwap] = useState<SwapTarget | null>(null);
+  const [swapPick, setSwapPick] = useState<string | null>(null);
   const [pdf, setPdf] = useState<File | null>(null);
   const [cover, setCover] = useState<File | null>(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The book document (size + edited titles) persists across sessions.
+  // The book document (size + edited titles + page swaps) persists across sessions.
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     getDB()
@@ -42,6 +53,7 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
       .then((doc) => {
         if (doc) {
           setTitles(doc.titles);
+          setOverrides(doc.overrides ?? {});
           setTarget(Math.min(Math.max(doc.target, Math.min(4, maxPhotos)), maxPhotos));
         }
         setLoaded(true);
@@ -52,24 +64,67 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
     if (!loaded) return;
     const t = setTimeout(() => {
       getDB()
-        .then((db) => db.put('books', { target, titles, updatedAt: Date.now() }, tripId))
+        .then((db) => db.put('books', { target, titles, overrides, updatedAt: Date.now() }, tripId))
         .catch(() => {});
     }, 400);
     return () => clearTimeout(t);
-  }, [loaded, target, titles]);
+  }, [loaded, target, titles, overrides]);
 
   const plan = useMemo(
     () => planBook(keepers, target, places, pinnedIds, lang),
     [keepers, target, places, pinnedIds, lang],
   );
+  const overridden = useMemo(() => applyBookOverrides(plan, overrides), [plan, overrides]);
   const titled = useMemo<BookPlan>(
     () => ({
-      ...plan,
-      chapters: plan.chapters.map((c) => ({ ...c, title: titles[c.key] ?? c.title })),
+      ...overridden,
+      chapters: overridden.chapters.map((c) => ({ ...c, title: titles[c.key] ?? c.title })),
     }),
-    [plan, titles],
+    [overridden, titles],
   );
   const pageCount = titled.chapters.reduce((n, c) => n + 1 + c.pages.length, 0);
+
+  // Swap-sheet data: same-day keepers not already used anywhere in the book.
+  const keepersById = useMemo(() => new Map(keepers.map((p) => [p.id, p])), [keepers]);
+  const allUsedIds = useMemo(
+    () => new Set(titled.chapters.flatMap((c) => [c.heroId, ...c.pages.flatMap((p) => p.photoIds)])),
+    [titled],
+  );
+  const swapCandidates = useMemo(() => {
+    if (!swap) return [];
+    const chapter = titled.chapters.find((c) => c.key === swap.chapterKey);
+    if (!chapter) return [];
+    const dayKeys = new Set(
+      [chapter.heroId, ...chapter.pages.flatMap((p) => p.photoIds)]
+        .map((id) => keepersById.get(id))
+        .filter((p): p is PhotoMeta => !!p)
+        .map((p) => new Date(takenTime(p)).toDateString()),
+    );
+    return keepers.filter((p) => !allUsedIds.has(p.id) && dayKeys.has(new Date(takenTime(p)).toDateString()));
+  }, [swap, titled, keepersById, keepers, allUsedIds]);
+
+  const openSwap = useCallback((next: SwapTarget) => {
+    setSwap(next);
+    setSwapPick(null);
+  }, []);
+  const closeSwap = useCallback(() => {
+    setSwap(null);
+    setSwapPick(null);
+  }, []);
+  const confirmSwap = useCallback(() => {
+    if (!swap || !swapPick) return;
+    setOverrides((prev) => ({ ...prev, [`${swap.chapterKey}:${swap.slotIndex}`]: swapPick }));
+    closeSwap();
+  }, [swap, swapPick, closeSwap]);
+  const revertSwap = useCallback(() => {
+    if (!swap) return;
+    setOverrides((prev) => {
+      const next = { ...prev };
+      delete next[`${swap.chapterKey}:${swap.slotIndex}`];
+      return next;
+    });
+    closeSwap();
+  }, [swap, closeSwap]);
 
   const generate = useCallback(async () => {
     setError(null);
@@ -186,32 +241,109 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
                 aria-label={`Chapter title for ${c.key}`}
                 className="w-full border-2 border-ink bg-white px-3 py-2 text-[15px] font-extrabold text-ink"
               />
-              {c.caption && <p className="text-[12px] font-semibold text-accent">{c.caption}</p>}
+              {c.caption && (
+                <p className="text-[12px] font-semibold text-accent">
+                  {c.caption} · {t('bookTapToEdit')}
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
-                <div className="relative h-[112px] w-[112px]">
+                <button
+                  onClick={() => openSwap({ chapterKey: c.key, slotIndex: 0, photoId: c.heroId, pageLabel: 'hero' })}
+                  className={`relative h-[112px] w-[112px] ${
+                    swap?.chapterKey === c.key && swap.slotIndex === 0 ? 'outline outline-2 -outline-offset-2 outline-accent opacity-50' : ''
+                  }`}
+                >
                   <Thumb id={c.heroId} alt="Chapter hero" />
                   <span className="absolute start-0 top-0 bg-accent px-[6px] py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-white">
                     {t('chapterHero')}
                   </span>
-                </div>
-                {c.pages.map((p, i) => (
-                  <div
-                    key={i}
-                    className="grid h-[112px] w-[112px] grid-cols-2 content-start gap-0.5 border border-line p-0.5"
-                  >
-                    {p.photoIds.map((id) => (
-                      <div key={id} className={p.photoIds.length === 1 ? 'col-span-2' : ''}>
-                        <Thumb id={id} alt="" />
-                      </div>
-                    ))}
-                  </div>
-                ))}
+                  <span className="absolute inset-x-0 bottom-0 bg-[rgba(32,30,29,.75)] py-1 text-center text-[9px] font-semibold text-white">
+                    {t('bookTapToReplace')}
+                  </span>
+                </button>
+                {c.pages.map((p, i) => {
+                  const slotStart = 1 + c.pages.slice(0, i).reduce((n, pg) => n + pg.photoIds.length, 0);
+                  const pageSelected = swap?.chapterKey === c.key && swap.pageLabel === i + 1;
+                  return (
+                    <div
+                      key={i}
+                      className={`relative grid h-[112px] w-[112px] grid-cols-2 content-start gap-0.5 p-0.5 ${
+                        pageSelected ? 'border-2 border-accent' : 'border border-line'
+                      }`}
+                    >
+                      {pageSelected && (
+                        <span className="absolute start-0 top-0 z-10 bg-accent px-[6px] py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-white">
+                          {t('bookPageChip', { n: i + 1 })}
+                        </span>
+                      )}
+                      {p.photoIds.map((id, slotOffset) => {
+                        const slotIndex = slotStart + slotOffset;
+                        const isTarget = swap?.chapterKey === c.key && swap.slotIndex === slotIndex;
+                        return (
+                          <button
+                            key={id}
+                            onClick={() => openSwap({ chapterKey: c.key, slotIndex, photoId: id, pageLabel: i + 1 })}
+                            className={`${p.photoIds.length === 1 ? 'col-span-2' : ''} ${
+                              isTarget ? 'outline outline-2 -outline-offset-2 outline-accent opacity-50' : ''
+                            }`}
+                          >
+                            <Thumb id={id} alt="" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </section>
           ))}
         </div>
       </div>
 
+      {swap ? (
+        <div className="border-t-2 border-accent bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(32,30,29,.12)]">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[14px] font-extrabold text-ink">
+                {swap.pageLabel === 'hero' ? t('chapterHero') : t('bookSwapTitle', { n: swap.pageLabel })}
+              </span>
+              <button onClick={closeSwap} className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                {t('bookSwapClose')}
+              </button>
+            </div>
+            <p className="text-xs text-muted">{t('bookSwapHelper')}</p>
+            {swapCandidates.length === 0 ? (
+              <p className="text-xs text-muted">{t('bookSwapEmpty')}</p>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto">
+                {swapCandidates.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSwapPick(p.id)}
+                    className={`h-16 w-16 shrink-0 ${
+                      swapPick === p.id ? 'outline outline-2 -outline-offset-2 outline-accent' : ''
+                    }`}
+                  >
+                    <Thumb id={p.id} alt="" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={revertSwap} className="flex-1 border-2 border-ink py-2.5 text-[11px] font-semibold text-ink">
+                {t('bookRemoveFromPage')}
+              </button>
+              <button
+                onClick={confirmSwap}
+                disabled={!swapPick}
+                className="flex-1 bg-accent py-2.5 text-[11px] font-semibold text-white disabled:opacity-45"
+              >
+                {t('bookSwapPhoto')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="border-t-2 border-ink px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
           {progress.running && (
@@ -284,6 +416,7 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

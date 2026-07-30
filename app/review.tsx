@@ -23,7 +23,7 @@ interface ReviewProps {
   startId: string;
   decisions: Map<string, Decision>;
   onDecide: (id: string, decision: Decision | null) => void;
-  onDelete: (id: string) => Promise<void>;
+  onDelete: (id: string) => void;
   onClose: () => void;
   getFile: (id: string) => File | undefined;
 }
@@ -94,13 +94,12 @@ export function ReviewOverlay({
     [settle, photo.id, safeIndex, list.length, onDecide, onClose],
   );
 
-  const deleteCurrent = useCallback(async () => {
+  const deleteCurrent = useCallback(() => {
     if (settle) return;
-    if (!window.confirm(t('deletePhotoConfirm'))) {
-      return;
-    }
+    // Optimistic: onDelete hides it immediately and offers an undo toast at
+    // the page level — no confirm() interruption.
     const id = photo.id;
-    await onDelete(id);
+    onDelete(id);
     if (list.length <= 1) {
       onClose();
       return;
@@ -517,12 +516,12 @@ function FullPhoto({ id, name, getFile }: { id: string; name: string; getFile: (
   const src = !broken && fullUrl ? fullUrl : thumbUrl;
   if (!src) return <div className="h-full w-full bg-placeholder" />;
   // eslint-disable-next-line @next/next/no-img-element -- blob URLs, next/image can't optimize them
-  return <img src={src} alt={name} onError={() => setBroken(true)} className="h-full w-full grayscale object-contain" draggable={false} />;
+  return <img src={src} alt={name} onError={() => setBroken(true)} className="h-full w-full object-contain" draggable={false} />;
 }
 
 function Strip({ id, alt }: { id: string; alt: string }) {
   const url = useThumbUrl(id);
   if (!url) return <div className="h-full w-full bg-placeholder" />;
   // eslint-disable-next-line @next/next/no-img-element -- blob URL from IndexedDB
-  return <img src={url} alt={alt} className="h-full w-full grayscale object-cover" />;
+  return <img src={url} alt={alt} className="h-full w-full object-cover" />;
 }

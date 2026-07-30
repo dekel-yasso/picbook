@@ -77,6 +77,11 @@ export interface BookPlan {
 export interface BookDoc {
   target: number;
   titles: Record<string, string>;
+  /** User photo swaps, keyed `${chapterKey}:${slotIndex}` (slot 0 = hero, then
+   *  each page's photoIds in order) → replacement photo id. Applied after
+   *  planBook so a slider move that reshuffles pages keeps swaps that still
+   *  have a matching slot. */
+  overrides?: Record<string, string>;
   updatedAt: number;
 }
 

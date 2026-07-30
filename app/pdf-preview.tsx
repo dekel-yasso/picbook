@@ -63,7 +63,7 @@ export function PdfPreview({ file }: { file: File }) {
             key={url}
             src={url}
             alt={`Page ${i + 1}`}
-            className="w-[78%] max-w-[420px] shrink-0 snap-center border border-line grayscale"
+            className="w-[78%] max-w-[420px] shrink-0 snap-center border border-line"
           />
         ))}
         {pages.length === 0 && (

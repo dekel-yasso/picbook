@@ -121,6 +121,39 @@ export function planBook(
   return { chapters, photoCount: chapters.reduce((n, c) => n + 1 + c.pages.reduce((m, p) => m + p.photoIds.length, 0), 0) };
 }
 
+/**
+ * Applies user photo swaps on top of a freshly-planned book. Overrides are
+ * keyed `${chapterKey}:${slotIndex}` (slot 0 = hero, then each page's
+ * photoIds flattened in order) — a slot that no longer exists after a
+ * re-plan (slider move) is simply skipped, not an error.
+ */
+export function applyBookOverrides(plan: BookPlan, overrides: Record<string, string>): BookPlan {
+  if (!Object.keys(overrides).length) return plan;
+  return {
+    ...plan,
+    chapters: plan.chapters.map((c) => {
+      const slots = [c.heroId, ...c.pages.flatMap((p) => p.photoIds)];
+      let changed = false;
+      const patched = slots.map((id, i) => {
+        const replacement = overrides[`${c.key}:${i}`];
+        if (replacement && replacement !== id) {
+          changed = true;
+          return replacement;
+        }
+        return id;
+      });
+      if (!changed) return c;
+      let cursor = 1;
+      const pages = c.pages.map((p) => {
+        const ids = patched.slice(cursor, cursor + p.photoIds.length);
+        cursor += p.photoIds.length;
+        return { photoIds: ids };
+      });
+      return { ...c, heroId: patched[0], pages };
+    }),
+  };
+}
+
 // Every chapter gets at least this many photos when the budget allows —
 // a lonely hero page reads like an afterthought.
 const DAY_FLOOR = 3;

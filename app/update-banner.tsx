@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
@@ -54,8 +55,9 @@ export function UpdateBanner() {
   return (
     <button
       onClick={update}
-      className="w-full border-2 border-accent px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-accent"
+      className="flex w-full items-center justify-center gap-1.5 border-2 border-accent px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-accent"
     >
+      <RefreshCw size={13} strokeWidth={2.25} />
       {t('updateAvailable')}
     </button>
   );
