@@ -370,20 +370,30 @@ function drawCover(
 }
 
 function drawTitleCard(ctx: OffscreenCanvasRenderingContext2D, seg: { text: string; sub?: string }) {
-  const g = ctx.createLinearGradient(0, 0, 0, SIZE);
-  g.addColorStop(0, '#101418');
-  g.addColorStop(1, '#1c2430');
-  ctx.fillStyle = g;
+  // Modernist poster card: solid navy field, flush-start white title under a
+  // short underline bar, uppercase sub-line — mirrors flush-start for Hebrew.
+  ctx.fillStyle = '#1f3d5c';
   ctx.fillRect(0, 0, SIZE, SIZE);
-  ctx.fillStyle = '#f5f5f4';
-  ctx.textAlign = 'center';
+
+  const isRtl = /[֐-׿]/.test(seg.text);
+  const margin = 96;
+  const x = isRtl ? SIZE - margin : margin;
+  const maxWidth = SIZE - margin * 2;
+  ctx.textAlign = isRtl ? 'right' : 'left';
   ctx.textBaseline = 'middle';
+
+  const barW = 64;
+  const barY = SIZE / 2 - (seg.sub ? 86 : 66);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(isRtl ? x - barW : x, barY, barW, 5);
+
+  ctx.fillStyle = '#ffffff';
   // Canvas applies proper bidi shaping natively, so Hebrew titles just work.
-  ctx.font = '600 64px system-ui, sans-serif';
-  ctx.fillText(seg.text, SIZE / 2, SIZE / 2 - (seg.sub ? 28 : 0), SIZE - 120);
+  ctx.font = '800 62px Archivo, system-ui, sans-serif';
+  ctx.fillText(seg.text, x, SIZE / 2 - (seg.sub ? 20 : 0), maxWidth);
   if (seg.sub) {
-    ctx.fillStyle = 'rgba(245,245,244,0.65)';
-    ctx.font = '400 34px system-ui, sans-serif';
-    ctx.fillText(seg.sub, SIZE / 2, SIZE / 2 + 42, SIZE - 160);
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = '700 26px Archivo, system-ui, sans-serif';
+    ctx.fillText(seg.sub.toUpperCase(), x, SIZE / 2 + 46, maxWidth);
   }
 }

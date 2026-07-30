@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, Check, RotateCcw, Trash2, X } from 'lucide-react';
 import { isKeeper, type Cluster } from '@/lib/engine/cluster';
 import { getDB } from '@/lib/engine/db';
 import type { Decision, PhotoMeta } from '@/lib/engine/types';
@@ -49,14 +50,14 @@ export function ReviewOverlay({
   const [dragX, setDragX] = useState(0);
   const [settle, setSettle] = useState<{ dir: -1 | 0 | 1 } | null>(null);
 
-  // While the viewer is open, paint the document itself black: iOS repaints
-  // fixed layers late on rotation, and the flash shows the page background.
+  // While the viewer is open, paint the document itself the ground color: iOS
+  // repaints fixed layers late on rotation, and the flash shows the page background.
   useEffect(() => {
     const html = document.documentElement.style;
     const body = document.body.style;
     const prev = [html.backgroundColor, body.backgroundColor];
-    html.backgroundColor = '#000';
-    body.backgroundColor = '#000';
+    html.backgroundColor = '#f3f2f2';
+    body.backgroundColor = '#f3f2f2';
     return () => {
       html.backgroundColor = prev[0];
       body.backgroundColor = prev[1];
@@ -285,31 +286,32 @@ export function ReviewOverlay({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex flex-col bg-black text-white"
+      className="fixed inset-0 z-50 flex flex-col bg-ground text-ink"
     >
       {!landscape && (
-        <div className="flex items-center justify-between px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <button onClick={onClose} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
-            ✕
+        <div className="flex items-center justify-between border-b-2 border-ink px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <button onClick={onClose} aria-label={t('close')} className="px-2 py-1">
+            <X size={20} strokeWidth={2.25} />
           </button>
-          <span className="text-sm text-neutral-400">
+          <span className="text-[13px] font-bold">
             {safeIndex + 1} / {list.length}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => onDecide(photo.id, null)}
               disabled={!decision}
-              className="rounded-lg px-2 py-1 text-xs text-neutral-400 disabled:opacity-0"
+              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted disabled:opacity-0"
             >
+              <RotateCcw size={13} strokeWidth={2.25} />
               {t('reset')}
             </button>
             <button
               onClick={deleteCurrent}
               aria-label={t('deletePhoto')}
               title={t('deletePhoto')}
-              className="rounded-lg px-2 py-1 text-base leading-none text-neutral-400"
+              className="px-2 py-1 text-muted"
             >
-              🗑
+              <Trash2 size={17} strokeWidth={2.25} />
             </button>
           </div>
         </div>
@@ -329,7 +331,7 @@ export function ReviewOverlay({
           {panes.map((entry, i) => (
             <div
               key={entry?.photo.id ?? `edge-${i}`}
-              className="relative h-full w-full shrink-0 overflow-hidden"
+              className="relative h-full w-full shrink-0 overflow-hidden bg-placeholder"
             >
               {entry && (
                 <>
@@ -367,32 +369,32 @@ export function ReviewOverlay({
             <button
               onClick={onClose}
               aria-label={t('close')}
-              className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1.5 text-lg leading-none"
+              className="absolute left-3 top-3 rounded-full bg-ink/70 px-3 py-1.5 text-ground"
             >
-              ✕
+              <X size={18} strokeWidth={2.25} />
             </button>
-            <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1.5 text-xs text-neutral-300">
+            <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1.5 text-xs font-semibold text-ground">
               {safeIndex + 1} / {list.length}
             </span>
             <button
               onClick={() => decideAndAdvance('reject')}
-              className="absolute bottom-3 left-3 rounded-full bg-red-600/90 px-5 py-2.5 text-sm font-semibold"
+              className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full border-2 border-ground bg-ink/70 px-5 py-2.5 text-sm font-semibold text-ground"
             >
+              <X size={16} strokeWidth={2.5} />
               {t('reject')}
             </button>
             <button
               onClick={() => decideAndAdvance('book')}
               aria-label={t('mustBook')}
-              className={`absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full px-5 py-2.5 text-sm font-semibold ${
-                decision === 'book' ? 'bg-amber-500 text-black' : 'bg-amber-600/80'
-              }`}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white"
             >
-              📖
+              <BookOpen size={18} strokeWidth={2.25} />
             </button>
             <button
               onClick={() => decideAndAdvance('keep')}
-              className="absolute bottom-3 right-3 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold"
+              className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-ground"
             >
+              <Check size={16} strokeWidth={2.5} />
               {t('keep')}
             </button>
           </>
@@ -401,7 +403,7 @@ export function ReviewOverlay({
 
       {/* Fixed-height strip whether or not the current photo is in a burst,
           so the photo doesn't jump vertically while browsing. */}
-      <div className={`flex h-[4.5rem] shrink-0 gap-1 overflow-x-auto px-4 py-2 ${landscape ? 'hidden' : ''}`}>
+      <div className={`flex h-[4.5rem] shrink-0 gap-1 border-t-2 border-ink px-4 py-2 overflow-x-auto ${landscape ? 'hidden' : ''}`}>
         {cluster.photos.length > 1 &&
           cluster.photos.map((p) => {
             const j = list.findIndex((e) => e.photo.id === p.id);
@@ -409,9 +411,9 @@ export function ReviewOverlay({
               <button
                 key={p.id}
                 onClick={() => j >= 0 && setIndex(j)}
-                className={`h-14 w-14 shrink-0 overflow-hidden rounded ${
-                  p.id === photo.id ? 'ring-2 ring-white' : ''
-                } ${isKeeper(p, cluster, decisions) ? '' : 'opacity-40'}`}
+                className={`h-14 w-14 shrink-0 overflow-hidden ${
+                  p.id === photo.id ? 'outline outline-2 -outline-offset-2 outline-accent' : ''
+                } ${isKeeper(p, cluster, decisions) ? '' : 'opacity-[.35]'}`}
               >
                 <Strip id={p.id} alt={p.name} />
               </button>
@@ -421,30 +423,30 @@ export function ReviewOverlay({
 
       {!landscape && (
         <>
-          <div className="flex items-center gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+          <div className="flex items-center gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
             <button
               onClick={() => decideAndAdvance('reject')}
-              className="flex-1 rounded-xl bg-red-600/90 py-3.5 text-sm font-semibold"
+              className="flex flex-1 items-center gap-1.5 border-2 border-ink py-3.5 ps-4 text-[13px] font-semibold text-ink"
             >
+              <X size={16} strokeWidth={2.25} />
               {t('reject')}
             </button>
             <button
               onClick={() => decideAndAdvance('book')}
               aria-label={t('mustBook')}
-              className={`rounded-xl px-4 py-3.5 text-sm font-semibold ${
-                decision === 'book' ? 'bg-amber-500 text-black' : 'bg-amber-600/80'
-              }`}
+              className="flex h-[3.125rem] w-[3.125rem] shrink-0 items-center justify-center bg-accent text-white"
             >
-              📖
+              <BookOpen size={18} strokeWidth={2.25} />
             </button>
             <button
               onClick={() => decideAndAdvance('keep')}
-              className="flex-1 rounded-xl bg-emerald-600 py-3.5 text-sm font-semibold"
+              className="flex flex-1 items-center gap-1.5 bg-ink py-3.5 ps-4 text-[13px] font-semibold text-ground"
             >
+              <Check size={16} strokeWidth={2.5} />
               {t('keep')}
             </button>
           </div>
-          <p className="pb-2 text-center text-[11px] text-neutral-500">{t('swipeHint')}</p>
+          <p className="pb-2 ps-4 text-[11px] font-semibold uppercase tracking-wide text-muted">{t('swipeHint')}</p>
         </>
       )}
     </div>
@@ -465,8 +467,8 @@ function FateBadge({
   const kept = isKeeper(entry.photo, entry.cluster, decisions);
   return (
     <span
-      className={`absolute left-3 ${below ? 'top-14' : 'top-3'} rounded px-2 py-0.5 text-xs font-semibold ${
-        d === 'book' ? 'bg-amber-500 text-black' : kept ? 'bg-emerald-500 text-white' : 'bg-neutral-700 text-neutral-200'
+      className={`absolute start-0 ${below ? 'top-14' : 'top-0'} px-[6px] py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] ${
+        d === 'book' ? 'bg-accent text-white' : 'bg-ink text-ground'
       }`}
     >
       {d === 'book'
@@ -513,14 +515,14 @@ function FullPhoto({ id, name, getFile }: { id: string; name: string; getFile: (
   }, [id, getFile]);
 
   const src = !broken && fullUrl ? fullUrl : thumbUrl;
-  if (!src) return <div className="h-full w-full animate-pulse bg-neutral-900" />;
+  if (!src) return <div className="h-full w-full bg-placeholder" />;
   // eslint-disable-next-line @next/next/no-img-element -- blob URLs, next/image can't optimize them
-  return <img src={src} alt={name} onError={() => setBroken(true)} className="h-full w-full object-contain" draggable={false} />;
+  return <img src={src} alt={name} onError={() => setBroken(true)} className="h-full w-full grayscale object-contain" draggable={false} />;
 }
 
 function Strip({ id, alt }: { id: string; alt: string }) {
   const url = useThumbUrl(id);
-  if (!url) return <div className="h-full w-full bg-neutral-800" />;
+  if (!url) return <div className="h-full w-full bg-placeholder" />;
   // eslint-disable-next-line @next/next/no-img-element -- blob URL from IndexedDB
-  return <img src={url} alt={alt} className="h-full w-full object-cover" />;
+  return <img src={url} alt={alt} className="h-full w-full grayscale object-cover" />;
 }

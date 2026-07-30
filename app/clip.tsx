@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronLeft, ChevronRight, Pause, Play, Search, X } from 'lucide-react';
 import { encodeSoundtrack, type EncodedSound } from '@/lib/engine/audio';
 import { detectBeats, loopBeats, syncPlanToBeats } from '@/lib/engine/beats';
 import { clipSeconds, clipSecondsExact, planClip } from '@/lib/engine/clip';
@@ -411,24 +412,24 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
   }, [video]);
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-neutral-500/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button onClick={onClose} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
-          ✕
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-ground text-ink">
+      <div className="flex items-center justify-between border-b-2 border-ink px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <button onClick={onClose} aria-label={t('close')} className="px-2 py-1">
+          <X size={20} strokeWidth={2.25} />
         </button>
-        <span className="text-sm font-semibold">{t('tripClip')}</span>
-        <span className="text-xs text-neutral-500">~{seconds}s</span>
+        <span className="text-[14px] font-extrabold">{t('tripClip')}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">~{seconds}S</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
-          <div className="flex overflow-hidden rounded-lg border border-neutral-500/40 text-xs">
-            {LENGTHS.map((l) => (
+          <div className="flex border-2 border-ink text-xs">
+            {LENGTHS.map((l, i) => (
               <button
                 key={l.label}
                 onClick={() => setLength(l.label)}
-                className={`flex-1 px-3 py-2 font-medium ${
-                  length === l.label ? 'bg-foreground text-background' : 'text-neutral-500'
+                className={`flex-1 px-3 py-2 font-bold ${i > 0 ? 'border-s-2 border-ink' : ''} ${
+                  length === l.label ? 'bg-ink text-ground' : 'text-muted'
                 }`}
               >
                 {l.label === 'Short' ? t('lenShort') : l.label === 'Medium' ? t('lenMedium') : t('lenLong')}
@@ -436,15 +437,15 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             ))}
           </div>
           <div className="flex items-center gap-1.5 overflow-x-auto">
-            <span className="shrink-0 text-xs text-neutral-500">{t('transition')}</span>
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">{t('transition')}</span>
             {TRANSITIONS.map((tr) => (
               <button
                 key={tr.value}
                 onClick={() => pickTransition(tr.value)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                className={`shrink-0 text-[11px] font-semibold ${
                   transition === tr.value
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-neutral-500/40 text-neutral-500'
+                    ? 'bg-accent px-2.5 py-1 text-white'
+                    : 'border border-line px-[9px] py-[3px] text-muted'
                 }`}
               >
                 {tr.label === 'Fade' ? t('trFade') : tr.label === 'Slide' ? t('trSlide') : tr.label === 'Zoom' ? t('trZoom') : tr.label === 'Wipe' ? t('trWipe') : t('trMix')}
@@ -452,10 +453,10 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             ))}
             <button
               onClick={toggleMaps}
-              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+              className={`shrink-0 text-[11px] font-semibold ${
                 mapsOn
-                  ? 'border-foreground bg-foreground text-background'
-                  : 'border-neutral-500/40 text-neutral-500'
+                  ? 'bg-accent px-2.5 py-1 text-white'
+                  : 'border border-line px-[9px] py-[3px] text-muted'
               }`}
             >
               {t('mapTransitions')}
@@ -463,20 +464,24 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className="shrink-0 text-xs text-neutral-500">{t('music')}</span>
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">{t('music')}</span>
             <button
               onClick={() => setMusicOpen(true)}
-              className="flex min-w-0 flex-1 items-center justify-between rounded-full border border-neutral-500/40 px-3 py-1.5 text-xs font-medium"
+              className="flex min-w-0 flex-1 items-center justify-between border-2 border-ink bg-white px-3 py-1.5 text-xs font-semibold text-ink"
             >
               <span className="truncate">{currentTrackLabel}</span>
-              <span className="ms-2 shrink-0 text-neutral-500">{lang === 'he' ? '‹' : '›'}</span>
+              {lang === 'he' ? (
+                <ChevronLeft className="ms-2 shrink-0 text-ink" size={14} strokeWidth={2.25} />
+              ) : (
+                <ChevronRight className="ms-2 shrink-0 text-ink" size={14} strokeWidth={2.25} />
+              )}
             </button>
             <button
               onClick={toggleBeatSync}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${
+              className={`shrink-0 text-[11px] font-semibold ${
                 beatSync && music !== 'none'
-                  ? 'border-foreground bg-foreground text-background'
-                  : 'border-neutral-500/40 text-neutral-500'
+                  ? 'bg-accent px-2.5 py-1.5 text-white'
+                  : 'border border-line px-[9px] py-[5px] text-muted'
               }`}
             >
               {t('beatSync')}
@@ -484,12 +489,12 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
           </div>
 
           {musicOpen && (
-            <div className="fixed inset-0 z-[60] flex flex-col bg-background">
-              <div className="flex items-center justify-between border-b border-neutral-500/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-                <button onClick={closeMusic} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
-                  ✕
+            <div className="fixed inset-0 z-[60] flex flex-col bg-ground text-ink">
+              <div className="flex items-center justify-between border-b-2 border-ink px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+                <button onClick={closeMusic} aria-label={t('close')} className="px-2 py-1">
+                  <X size={20} strokeWidth={2.25} />
                 </button>
-                <span className="text-sm font-semibold">{t('music')}</span>
+                <span className="text-[14px] font-extrabold">{t('music')}</span>
                 <span className="w-8" />
               </div>
               <div className="flex-1 overflow-y-auto">
@@ -497,123 +502,148 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                   <div className="flex items-center gap-1.5 overflow-x-auto">
                     <button
                       onClick={() => { stopPreview(); pickMusic('none'); setMusicOpen(false); }}
-                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                      className={`shrink-0 text-[11px] font-semibold ${
                         music === 'none'
-                          ? 'border-foreground bg-foreground text-background'
-                          : 'border-neutral-500/40 text-neutral-500'
+                          ? 'bg-accent px-2.5 py-1 text-white'
+                          : 'border border-line px-[9px] py-[3px] text-muted'
                       }`}
                     >
                       {t('musicNone')}
                     </button>
                     <button
                       onClick={pickCustom}
-                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                      className={`shrink-0 text-[11px] font-semibold ${
                         music === 'custom'
-                          ? 'border-foreground bg-foreground text-background'
-                          : 'border-neutral-500/40 text-neutral-500'
+                          ? 'bg-accent px-2.5 py-1 text-white'
+                          : 'border border-line px-[9px] py-[3px] text-muted'
                       }`}
                     >
                       {music === 'custom' && customName
-                        ? `🎵 ${customName.length > 18 ? customName.slice(0, 16) + '…' : customName}`
+                        ? customName.length > 18
+                          ? customName.slice(0, 16) + '…'
+                          : customName
                         : t('musicCustom')}
                     </button>
                     {customName && (
                       <button
                         onClick={() => togglePreview('custom')}
-                        className="shrink-0 rounded-full border border-neutral-500/40 px-2.5 py-1 text-xs text-neutral-500"
+                        className="shrink-0 border border-line px-2 py-1 text-muted"
                         aria-label={t('musicPreview')}
                       >
-                        {previewing === 'custom' ? '⏸' : '▶'}
+                        {previewing === 'custom' ? (
+                          <Pause size={12} strokeWidth={2.25} />
+                        ) : (
+                          <Play size={12} strokeWidth={2.25} />
+                        )}
                       </button>
                     )}
                   </div>
-                  <div className="divide-y divide-neutral-500/10 overflow-hidden rounded-xl border border-neutral-500/20">
-                    <p className="bg-neutral-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                  <div className="divide-y divide-track border-2 border-ink bg-white">
+                    <p className="bg-ink px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-ground">
                       {t('musicOriginals')}
                     </p>
                     {ORIGINALS.map((tr) => (
                       <div key={tr.key} className="flex items-center">
                         <button
                           onClick={() => togglePreview(tr.key)}
-                          className="shrink-0 px-3 py-2.5 text-sm text-neutral-500"
+                          className={`shrink-0 px-3 py-2.5 ${music === tr.key ? 'text-accent' : 'text-muted'}`}
                           aria-label={t('musicPreview')}
                         >
-                          {previewing === tr.key ? '⏸' : '▶'}
+                          {previewing === tr.key ? (
+                            <Pause size={12} strokeWidth={2.25} />
+                          ) : (
+                            <Play size={12} strokeWidth={2.25} />
+                          )}
                         </button>
                         <button
                           onClick={() => { pickMusic(tr.key); closeMusic(); }}
-                          className={`flex-1 py-2.5 pe-3 text-start text-sm ${
-                            music === tr.key ? 'font-semibold' : 'text-neutral-500'
+                          className={`flex flex-1 items-center justify-between py-2.5 pe-3 text-start text-[13px] ${
+                            music === tr.key ? 'font-extrabold' : 'text-ink'
                           }`}
                         >
                           {lang === 'he' ? tr.he : tr.en}
-                          {music === tr.key && <span className="ms-1.5">✓</span>}
+                          {music === tr.key && <Check className="text-accent" size={14} strokeWidth={2.5} />}
                         </button>
                       </div>
                     ))}
-                    <p className="bg-neutral-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                    <p className="bg-ink px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-ground">
                       {t('musicClassical')}
                     </p>
                     {TRACKS.map((tr) => (
                       <div key={tr.key} className="flex items-center">
                         <button
                           onClick={() => togglePreview(tr.key)}
-                          className="shrink-0 px-3 py-2.5 text-sm text-neutral-500"
+                          className={`shrink-0 px-3 py-2.5 ${music === tr.key ? 'text-accent' : 'text-muted'}`}
                           aria-label={t('musicPreview')}
                         >
-                          {previewing === tr.key ? '⏸' : '▶'}
+                          {previewing === tr.key ? (
+                            <Pause size={12} strokeWidth={2.25} />
+                          ) : (
+                            <Play size={12} strokeWidth={2.25} />
+                          )}
                         </button>
                         <button
                           onClick={() => { pickMusic(tr.key); closeMusic(); }}
-                          className={`flex-1 py-2.5 pe-3 text-start text-sm ${
-                            music === tr.key ? 'font-semibold' : 'text-neutral-500'
+                          className={`flex flex-1 items-center justify-between py-2.5 pe-3 text-start text-[13px] ${
+                            music === tr.key ? 'font-extrabold' : 'text-ink'
                           }`}
                         >
                           {lang === 'he' ? tr.he : tr.en}
-                          {music === tr.key && <span className="ms-1.5">✓</span>}
+                          {music === tr.key && <Check className="text-accent" size={14} strokeWidth={2.5} />}
                         </button>
                       </div>
                     ))}
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <input
-                      value={jamQuery}
-                      onChange={(e) => setJamQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && searchJamendo()}
-                      placeholder={t('musicSearchPh')}
-                      className="min-w-0 flex-1 rounded-full border border-neutral-500/30 bg-transparent px-3 py-2 text-xs outline-none placeholder:text-neutral-500"
-                    />
+                    <div className="relative min-w-0 flex-1">
+                      <Search
+                        className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted"
+                        size={14}
+                        strokeWidth={2.25}
+                      />
+                      <input
+                        value={jamQuery}
+                        onChange={(e) => setJamQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && searchJamendo()}
+                        placeholder={t('musicSearchPh')}
+                        className="w-full border-2 border-ink bg-white ps-8 pe-3 py-2 text-xs outline-none placeholder:text-muted"
+                      />
+                    </div>
                     <button
                       onClick={searchJamendo}
                       disabled={jamBusy}
-                      className="shrink-0 rounded-full border border-neutral-500/40 px-3 py-2 text-xs font-medium text-neutral-500"
+                      className="shrink-0 border-2 border-ink px-3 py-2 text-xs font-semibold text-ink"
                     >
                       {jamBusy ? '…' : t('musicSearch')}
                     </button>
                   </div>
                   {jamResults && (
-                    <div className="divide-y divide-neutral-500/10 overflow-hidden rounded-xl border border-neutral-500/20">
+                    <div className="divide-y divide-track border-2 border-ink bg-white">
                       {jamResults.length === 0 && (
-                        <p className="px-3 py-2 text-xs text-neutral-500">{t('musicSearchNone')}</p>
+                        <p className="px-3 py-2 text-xs text-muted">{t('musicSearchNone')}</p>
                       )}
                       {jamResults.map((hit) => (
                         <div key={hit.id} className="flex items-center">
                           <button
                             onClick={() => togglePreview(`jam:${hit.id}`, hit.audio)}
-                            className="shrink-0 px-3 py-2.5 text-sm text-neutral-500"
+                            className="shrink-0 px-3 py-2.5 text-muted"
                             aria-label={t('musicPreview')}
                           >
-                            {previewing === `jam:${hit.id}` ? '⏸' : '▶'}
+                            {previewing === `jam:${hit.id}` ? (
+                              <Pause size={12} strokeWidth={2.25} />
+                            ) : (
+                              <Play size={12} strokeWidth={2.25} />
+                            )}
                           </button>
                           <button
                             onClick={async () => { await pickJamendo(hit); closeMusic(); }}
-                            className="min-w-0 flex-1 py-2.5 pe-3 text-start text-sm text-neutral-500"
+                            className="min-w-0 flex-1 py-2.5 pe-3 text-start text-sm text-ink"
                           >
                             <span className="block truncate">
                               {jamFetching === hit.id ? '⏳ ' : ''}
                               {hit.artist} — {hit.name}
                             </span>
-                            <span className="text-[10px] opacity-70">
+                            <span className="text-[10px] text-muted">
                               {Math.floor(hit.duration / 60)}:{String(hit.duration % 60).padStart(2, '0')} · {hit.license}
                             </span>
                           </button>
@@ -635,7 +665,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
               aria-label={t('clipPreview')}
             />
           )}
-          <p className="text-xs text-neutral-500">
+          <p className="text-xs text-muted">
             {t('clipDesc', { n: plan.photoCount })}
           </p>
           <div className="grid grid-cols-6 gap-1">
@@ -646,30 +676,30 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
         </div>
       </div>
 
-      <div className="border-t border-neutral-500/30 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="border-t-2 border-ink px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
           {progress.running && (
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-500/30">
+            <div className="h-1.5 w-full bg-track">
               <div
-                className="h-full rounded-full bg-foreground transition-[width] duration-200"
+                className="h-full bg-ink transition-[width] duration-200"
                 style={{ width: `${progress.total ? (100 * progress.done) / progress.total : 0}%` }}
               />
             </div>
           )}
           {error && <p className="text-xs text-red-500">{error}</p>}
-          {musicDiag && <p className="text-[10px] text-neutral-400">{musicDiag}</p>}
+          {musicDiag && <p className="text-[10px] text-faint">{musicDiag}</p>}
           <div className="flex gap-2">
             <button
               onClick={generate}
               disabled={progress.running || plan.photoCount === 0}
-              className="flex-1 rounded-xl border border-neutral-500/50 py-3 text-sm font-semibold disabled:opacity-40"
+              className="flex-1 border-2 border-ink py-3 text-[13px] font-semibold text-ink disabled:opacity-45"
             >
               {progress.running ? t('rendering') : video ? t('reRender') : t('renderClip')}
             </button>
             {video && !progress.running && (
               <button
                 onClick={save}
-                className="flex-1 rounded-xl bg-foreground py-3 text-sm font-semibold text-background"
+                className="flex-1 bg-accent py-3 text-[13px] font-semibold text-white"
               >
                 {t('saveVideo', { size: (video.size / 1024 / 1024).toFixed(1) })}
               </button>

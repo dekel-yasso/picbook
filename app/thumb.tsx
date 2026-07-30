@@ -107,9 +107,9 @@ export function Thumb({ id, alt }: { id: string; alt: string }) {
     <div ref={ref} className="aspect-square w-full">
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element -- blob URL from IndexedDB, next/image can't optimize it
-        <img src={url} alt={alt} className="h-full w-full rounded object-cover" loading="lazy" />
+        <img src={url} alt={alt} className="h-full w-full grayscale object-cover" loading="lazy" />
       ) : (
-        <div className="h-full w-full animate-pulse rounded bg-neutral-800" />
+        <div className="h-full w-full bg-placeholder" />
       )}
     </div>
   );

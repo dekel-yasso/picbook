@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Cloud, X } from 'lucide-react';
 import { exportBackup, importBackup } from '@/lib/engine/backup';
 import { signIn, signOut, syncNow, whoami } from '@/lib/engine/sync';
 import { useI18n } from '@/lib/i18n';
@@ -125,12 +126,12 @@ export function AccountOverlay({ onClose, onSynced }: AccountProps) {
   }, []);
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-neutral-500/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button onClick={onClose} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
-          ✕
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-ground text-ink">
+      <div className="flex items-center justify-between border-b-2 border-ink px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <button onClick={onClose} aria-label={t('close')} className="px-2 py-1">
+          <X size={20} strokeWidth={2.25} />
         </button>
-        <span className="text-sm font-semibold">{t('accountTitle')}</span>
+        <span className="text-[14px] font-extrabold">{t('accountTitle')}</span>
         <span className="w-8" />
       </div>
 
@@ -138,25 +139,26 @@ export function AccountOverlay({ onClose, onSynced }: AccountProps) {
         {!checked ? null : user ? (
           <>
             <p className="text-sm">
-              {t('signedInAs')} <span className="font-medium">{user}</span>
+              {t('signedInAs')} <span className="font-extrabold">{user}</span>
             </p>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-muted">
               {t('syncBody')}
             </p>
             <button
               onClick={runSync}
               disabled={busy}
-              className="rounded-xl bg-foreground py-3 text-sm font-semibold text-background disabled:opacity-40"
+              className="flex items-center justify-between bg-accent px-3.5 py-3 text-[13px] font-semibold text-white disabled:opacity-45"
             >
               {busy ? t('syncing') : t('syncNow')}
+              <Cloud size={16} strokeWidth={2.25} />
             </button>
-            <button onClick={logout} className="text-xs text-neutral-500 underline">
+            <button onClick={logout} className="self-start text-xs text-muted underline">
               {t('signOut')}
             </button>
           </>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-3">
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-muted">
               {t('signInIntro')}
             </p>
             <input
@@ -166,7 +168,7 @@ export function AccountOverlay({ onClose, onSynced }: AccountProps) {
               placeholder={t('emailPh')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-lg border border-neutral-500/40 bg-transparent px-3 py-2.5 text-sm"
+              className="border-2 border-ink bg-white px-3 py-2.5 text-sm"
             />
             <input
               type="password"
@@ -176,12 +178,12 @@ export function AccountOverlay({ onClose, onSynced }: AccountProps) {
               placeholder={t('passwordPh')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-lg border border-neutral-500/40 bg-transparent px-3 py-2.5 text-sm"
+              className="border-2 border-ink bg-white px-3 py-2.5 text-sm"
             />
             <button
               type="submit"
               disabled={busy}
-              className="rounded-xl bg-foreground py-3 text-sm font-semibold text-background disabled:opacity-40"
+              className="bg-accent py-3 text-[13px] font-semibold text-white disabled:opacity-45"
             >
               {busy ? t('working') : t('signInBtn')}
             </button>
@@ -190,37 +192,39 @@ export function AccountOverlay({ onClose, onSynced }: AccountProps) {
         {status && <p className="text-xs text-emerald-600">{status}</p>}
         {error && <p className="text-xs text-red-500">{error}</p>}
 
-        <div className="mt-4 flex flex-col gap-2 border-t border-neutral-500/30 pt-4">
-          <p className="text-xs text-neutral-500">
-            <span className="font-medium text-foreground">{t('backupTitle')}</span>
+        <div className="-mx-6 mt-4 border-t-2 border-ink" />
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted">
+            <span className="font-extrabold text-ink">{t('backupTitle')}</span>
             {t('backupBody')}
           </p>
           <div className="flex gap-2">
             <button
               onClick={doExport}
               disabled={busy}
-              className="flex-1 rounded-lg border border-neutral-500/40 py-2.5 text-xs font-medium disabled:opacity-40"
+              className="flex-1 border-2 border-ink py-2.5 text-xs font-semibold text-ink disabled:opacity-45"
             >
               {t('exportBackup')}
             </button>
             <button
               onClick={doImport}
               disabled={busy}
-              className="flex-1 rounded-lg border border-neutral-500/40 py-2.5 text-xs font-medium disabled:opacity-40"
+              className="flex-1 border-2 border-ink py-2.5 text-xs font-semibold text-ink disabled:opacity-45"
             >
               {t('importBackup')}
             </button>
           </div>
         </div>
-        <div className="flex items-center justify-between border-t border-neutral-500/30 pt-4">
-          <span className="text-xs text-neutral-500">{t('language')}</span>
-          <div className="flex overflow-hidden rounded-lg border border-neutral-500/40 text-xs">
-            {(['en', 'he'] as const).map((l) => (
+        <div className="-mx-6 border-t-2 border-ink" />
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t('language')}</span>
+          <div className="flex border-2 border-ink text-xs">
+            {(['en', 'he'] as const).map((l, i) => (
               <button
                 key={l}
                 onClick={() => setLang(l)}
-                className={`px-3 py-1.5 font-medium ${
-                  lang === l ? 'bg-foreground text-background' : 'text-neutral-500'
+                className={`px-3 py-1.5 font-bold ${i === 1 ? 'border-s-2 border-ink' : ''} ${
+                  lang === l ? 'bg-ink text-ground' : 'text-muted'
                 }`}
               >
                 {l === 'en' ? 'English' : 'עברית'}
@@ -228,7 +232,7 @@ export function AccountOverlay({ onClose, onSynced }: AccountProps) {
             ))}
           </div>
         </div>
-        <p className="mt-auto pt-4 text-center text-[10px] text-neutral-400">
+        <p className="mt-auto pt-4 text-center text-[10px] font-semibold uppercase tracking-wide text-faint">
           build {process.env.NEXT_PUBLIC_BUILD}
         </p>
       </div>

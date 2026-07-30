@@ -55,7 +55,7 @@ export function PdfPreview({ file }: { file: File }) {
   if (failed) return null; // preview is a bonus — Save still works
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-xs font-medium text-neutral-500">{t('previewSwipe')}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{t('previewSwipe')}</p>
       <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
         {pages.map((url, i) => (
           // eslint-disable-next-line @next/next/no-img-element -- transient blob URLs
@@ -63,11 +63,11 @@ export function PdfPreview({ file }: { file: File }) {
             key={url}
             src={url}
             alt={`Page ${i + 1}`}
-            className="w-[78%] max-w-[420px] shrink-0 snap-center rounded-lg border border-neutral-500/30 shadow-sm"
+            className="w-[78%] max-w-[420px] shrink-0 snap-center border border-line grayscale"
           />
         ))}
         {pages.length === 0 && (
-          <div className="h-64 w-[78%] max-w-[420px] shrink-0 animate-pulse rounded-lg bg-neutral-500/20" />
+          <div className="h-64 w-[78%] max-w-[420px] shrink-0 bg-placeholder" />
         )}
       </div>
     </div>

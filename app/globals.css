@@ -1,26 +1,42 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3f2f2;
+  --foreground: #201e1d;
+  --ground: #f3f2f2;
+  --ink: #201e1d;
+  --accent: #1f3d5c;
+  --accent-hover: #16304a;
+  --muted: #6f6a66;
+  --faint: #a39e99;
+  --line: #b9b5b0;
+  --track: #d8d5d2;
+  --placeholder: #e2e0dd;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ground: var(--ground);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-track: var(--track);
+  --color-placeholder: var(--placeholder);
+  --font-sans: var(--font-archivo);
+  --radius-none: 0px;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-archivo), Arial, Helvetica, sans-serif;
+}
+
+[dir="rtl"] body,
+:lang(he) {
+  font-family: var(--font-heebo), var(--font-archivo), Arial, Helvetica, sans-serif;
 }

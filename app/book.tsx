@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { planBook } from '@/lib/engine/book';
 import { getDB } from '@/lib/engine/db';
 import { exportPagesAsZip } from '@/lib/engine/export-pages';
@@ -144,24 +145,24 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
   }, [pdf]);
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-neutral-500/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button onClick={onClose} aria-label={t('close')} className="rounded-lg px-2 py-1 text-xl leading-none">
-          ✕
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-ground text-ink">
+      <div className="flex items-center justify-between border-b-2 border-ink px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <button onClick={onClose} aria-label={t('close')} className="px-2 py-1">
+          <X size={20} strokeWidth={2.25} />
         </button>
-        <span className="text-sm font-semibold">{t('yourBook')}</span>
-        <span className="text-xs text-neutral-500">{t('pagesCount', { n: pageCount })}</span>
+        <span className="text-[14px] font-extrabold">{t('yourBook')}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{t('pagesCount', { n: pageCount })}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-4">
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="flex justify-between text-neutral-500">
+          <label className="flex flex-col gap-2 text-sm">
+            <span className="flex justify-between text-[11px] font-semibold uppercase tracking-wide text-muted">
               <span>
                 {t('photosInBook')}
                 {pinnedIds.size > 0 && t('mustHaves', { n: pinnedIds.size })}
               </span>
-              <span className="font-medium text-foreground">
+              <span className="font-bold normal-case tracking-normal text-ink">
                 {t('ofMax', { n: plan.photoCount, max: maxPhotos })}
               </span>
             </span>
@@ -171,7 +172,7 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
               max={maxPhotos}
               value={target}
               onChange={(e) => setTarget(Number(e.target.value))}
-              className="w-full"
+              className="h-4 w-full appearance-none bg-transparent [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-none [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-accent [&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-track [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-track [&::-webkit-slider-thumb]:mt-[-6px] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-accent"
             />
           </label>
 
@@ -183,20 +184,20 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
                 value={c.title}
                 onChange={(e) => setTitles((t) => ({ ...t, [c.key]: e.target.value }))}
                 aria-label={`Chapter title for ${c.key}`}
-                className="w-full rounded-lg border border-neutral-500/30 bg-transparent px-3 py-2 text-sm font-medium"
+                className="w-full border-2 border-ink bg-white px-3 py-2 text-[15px] font-extrabold text-ink"
               />
-              {c.caption && <p className="text-xs text-neutral-500">{c.caption}</p>}
+              {c.caption && <p className="text-[12px] font-semibold text-accent">{c.caption}</p>}
               <div className="flex flex-wrap gap-2">
-                <div className="relative h-28 w-28">
+                <div className="relative h-[112px] w-[112px]">
                   <Thumb id={c.heroId} alt="Chapter hero" />
-                  <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] font-semibold text-white">
+                  <span className="absolute start-0 top-0 bg-accent px-[6px] py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-white">
                     {t('chapterHero')}
                   </span>
                 </div>
                 {c.pages.map((p, i) => (
                   <div
                     key={i}
-                    className="grid h-28 w-28 grid-cols-2 content-start gap-0.5 rounded-lg border border-neutral-500/30 p-0.5"
+                    className="grid h-[112px] w-[112px] grid-cols-2 content-start gap-0.5 border border-line p-0.5"
                   >
                     {p.photoIds.map((id) => (
                       <div key={id} className={p.photoIds.length === 1 ? 'col-span-2' : ''}>
@@ -211,12 +212,12 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
         </div>
       </div>
 
-      <div className="border-t border-neutral-500/30 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="border-t-2 border-ink px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
           {progress.running && (
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-500/30">
+            <div className="h-1.5 w-full bg-track">
               <div
-                className="h-full rounded-full bg-foreground transition-[width] duration-200"
+                className="h-full bg-ink transition-[width] duration-200"
                 style={{ width: `${progress.total ? (100 * progress.done) / progress.total : 0}%` }}
               />
             </div>
@@ -226,12 +227,12 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
             <button
               onClick={generate}
               disabled={progress.running || plan.photoCount === 0}
-              className="flex-1 rounded-xl border border-neutral-500/50 py-3 text-sm font-semibold disabled:opacity-40"
+              className="flex-1 border-2 border-ink py-3 text-[13px] font-semibold text-ink disabled:opacity-45"
             >
               {progress.running ? t('rendering') : pdf ? t('reRender') : t('renderPdf')}
             </button>
             {pdf && !progress.running && (
-              <button onClick={save} className="flex-1 rounded-xl bg-foreground py-3 text-sm font-semibold text-background">
+              <button onClick={save} className="flex-1 bg-accent py-3 text-[13px] font-semibold text-white">
                 {t('savePdf', { size: (pdf.size / 1024 / 1024).toFixed(1) })}
               </button>
             )}
@@ -241,21 +242,21 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
               <button
                 onClick={() => generateCover('softcover')}
                 disabled={coverBusy}
-                className="flex-1 rounded-xl border border-neutral-500/50 py-2.5 text-xs font-semibold disabled:opacity-40"
+                className="flex-1 border-2 border-ink py-2.5 text-[11px] font-semibold text-ink disabled:opacity-45"
               >
                 {coverBusy ? t('rendering') : t('renderCover')}
               </button>
               <button
                 onClick={() => generateCover('imagewrap')}
                 disabled={coverBusy}
-                className="flex-1 rounded-xl border border-neutral-500/50 py-2.5 text-xs font-semibold disabled:opacity-40"
+                className="flex-1 border-2 border-ink py-2.5 text-[11px] font-semibold text-ink disabled:opacity-45"
               >
                 {coverBusy ? t('rendering') : t('renderCoverHard')}
               </button>
               {cover && !coverBusy && (
                 <button
                   onClick={() => shareFile(cover)}
-                  className="flex-1 rounded-xl bg-foreground py-2.5 text-xs font-semibold text-background"
+                  className="flex-1 bg-accent py-2.5 text-[11px] font-semibold text-white"
                 >
                   {t('saveCover')}
                 </button>
@@ -267,14 +268,14 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
               <button
                 onClick={exportImages}
                 disabled={imagesBusy}
-                className="flex-1 rounded-xl border border-neutral-500/50 py-2.5 text-xs font-semibold disabled:opacity-40"
+                className="flex-1 border-2 border-ink py-2.5 text-[11px] font-semibold text-ink disabled:opacity-45"
               >
                 {imagesBusy ? t('rendering') : t('exportImages')}
               </button>
               {imagesZip && !imagesBusy && (
                 <button
                   onClick={() => shareFile(imagesZip)}
-                  className="flex-1 rounded-xl bg-foreground py-2.5 text-xs font-semibold text-background"
+                  className="flex-1 bg-accent py-2.5 text-[11px] font-semibold text-white"
                 >
                   {t('saveImagesZip', { size: (imagesZip.size / 1024 / 1024).toFixed(1) })}
                 </button>

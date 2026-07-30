@@ -1,17 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Archivo, Heebo } from "next/font/google";
 import "./globals.css";
 import { I18nProvider } from "@/lib/i18n";
 import { SWRegister } from "./sw-register";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const heebo = Heebo({
+  variable: "--font-heebo",
+  subsets: ["hebrew"],
+  weight: ["400", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -21,7 +23,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "PicBook",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
   icons: {
     apple: "/icons/apple-touch-icon.png",
@@ -29,7 +31,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: "#f3f2f2",
   viewportFit: "cover",
 };
 
@@ -41,7 +43,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${archivo.variable} ${heebo.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <I18nProvider>{children}</I18nProvider>

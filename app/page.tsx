@@ -1,6 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  Cloud,
+  LayoutGrid,
+  Pencil,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { clusterPhotos, isKeeper, takenTime, type Cluster } from '@/lib/engine/cluster';
 import { getDB } from '@/lib/engine/db';
 import { loadDecisions, saveDecision } from '@/lib/engine/decisions';
@@ -405,15 +416,15 @@ export default function Home() {
         className={`flex flex-1 flex-col gap-4 ${reviewing || bookOpen || clipOpen || accountOpen ? 'invisible' : ''}`}
       >
       {/* Sticky command bar: actions + live status stay reachable while scrolling. */}
-      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-3 bg-background/95 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur">
+      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-3 bg-[rgba(243,242,242,.96)] px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur">
       <UpdateBanner />
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">PicBook</h1>
+        <h1 className="text-[21px] font-extrabold tracking-[-0.02em] text-ink">PicBook</h1>
         <div className="flex gap-2">
           <button
             onClick={addPhotos}
             disabled={progress.running || receiving}
-            className="rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background disabled:opacity-40"
+            className="bg-accent px-3.5 py-2.5 text-[13px] font-semibold text-white disabled:opacity-45"
           >
             {t('addPhotos')}
           </button>
@@ -421,75 +432,86 @@ export default function Home() {
             <button
               onClick={addFolder}
               disabled={progress.running || receiving}
-              className="rounded-lg border border-neutral-500/50 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
+              className="border-2 border-ink px-3.5 py-2.5 text-[13px] font-semibold text-ink disabled:opacity-45"
             >
               {t('addFolder')}
             </button>
           )}
         </div>
       </header>
+      <div className="-mx-4 border-t-2 border-ink" />
 
       <div className="flex items-center gap-2">
-        <select
-          value={activeTripId}
-          onChange={(e) => switchTrip(e.target.value)}
-          aria-label="Trip"
-          className="min-w-0 flex-1 rounded-lg border border-neutral-500/40 bg-background px-3 py-2 text-sm font-medium"
-        >
-          {trips.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-          <option value="__new">{t('newTrip')}</option>
-        </select>
+        <div className="relative min-w-0 flex-1">
+          <select
+            value={activeTripId}
+            onChange={(e) => switchTrip(e.target.value)}
+            aria-label="Trip"
+            className="w-full appearance-none border-2 border-ink bg-white px-3 py-2 text-[14px] font-semibold text-ink"
+          >
+            {trips.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+            <option value="__new">{t('newTrip')}</option>
+          </select>
+          <ChevronDown
+            className="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2 text-ink"
+            size={16}
+            strokeWidth={2.25}
+          />
+        </div>
         <button
           onClick={renameActive}
           aria-label={t('renameTrip')}
           title={t('renameTrip')}
-          className="rounded-lg border border-neutral-500/40 px-3 py-2 text-xs font-medium text-neutral-500"
+          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center border-2 border-ink text-ink"
         >
-          ✎
+          <Pencil size={16} strokeWidth={2.25} />
         </button>
         <button
           onClick={deleteActiveTrip}
           aria-label={t('deleteTrip')}
           title={t('deleteTrip')}
-          className="rounded-lg border border-neutral-500/40 px-3 py-2 text-xs font-medium text-neutral-500"
+          className="flex h-[38px] w-[38px] shrink-0 items-center justify-center border-2 border-ink text-ink"
         >
-          🗑
+          <Trash2 size={16} strokeWidth={2.25} />
         </button>
         <button
           onClick={() => setAccountOpen(true)}
-          className="rounded-lg border border-neutral-500/40 px-3 py-2 text-xs font-medium text-neutral-500"
+          className="flex h-[38px] shrink-0 items-center gap-1.5 border-2 border-ink px-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink"
         >
+          <Cloud size={16} strokeWidth={2.25} />
           {t('syncBtn')}
         </button>
       </div>
 
       {receiving && !progress.running && (
-        <div className="flex items-center gap-3 rounded-lg border border-neutral-500/30 p-3">
+        <div className="flex items-center gap-3 border-2 border-ink p-3">
           <div className="flex flex-1 flex-col gap-1.5">
-            <div className="h-1.5 w-full animate-pulse rounded-full bg-foreground/60" />
-            <p className="text-xs text-neutral-500">
+            <div className="h-1.5 w-full bg-track">
+              <div className="h-full w-full animate-pulse bg-accent" />
+            </div>
+            <p className="text-xs text-muted">
               {receivingLong ? t('receivingLong') : t('receiving')}
             </p>
           </div>
           <button
             onClick={() => setReceiving(false)}
             aria-label={t('dismiss')}
-            className="px-1 text-neutral-500"
+            className="px-1 text-ink"
           >
-            ✕
+            <X size={16} strokeWidth={2.25} />
           </button>
         </div>
       )}
 
       {busy && (
         <div className="flex flex-col gap-1.5">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-500/30">
+          <div className="h-1.5 w-full bg-track">
             <div
-              className="h-full rounded-full bg-foreground transition-[width] duration-200"
+              className="h-full bg-ink transition-[width] duration-200"
               style={{
                 width: progress.running
                   ? `${progress.total ? (100 * progress.done) / progress.total : 0}%`
@@ -497,7 +519,7 @@ export default function Home() {
               }}
             />
           </div>
-          <p className="text-xs text-neutral-500">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
             {progress.running
               ? t('importing', { done: progress.done, total: progress.total })
               : t('scoring', { done: analyzeProgress.done, total: analyzeProgress.total })}
@@ -507,15 +529,15 @@ export default function Home() {
 
       {embedProgress.running && (
         <div className="flex flex-col gap-1.5">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-500/30">
+          <div className="h-1.5 w-full bg-track">
             <div
-              className="h-full rounded-full bg-foreground transition-[width] duration-200"
+              className="h-full bg-ink transition-[width] duration-200"
               style={{
                 width: `${embedProgress.total ? (100 * embedProgress.done) / embedProgress.total : 0}%`,
               }}
             />
           </div>
-          <p className="text-xs text-neutral-500">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
             {embedProgress.phase === 'download'
               ? t('downloadingModel', { pct: embedProgress.done })
               : t('understanding', { done: embedProgress.done, total: embedProgress.total })}
@@ -525,15 +547,15 @@ export default function Home() {
 
       {facesProgress.running && (
         <div className="flex flex-col gap-1.5">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-500/30">
+          <div className="h-1.5 w-full bg-track">
             <div
-              className="h-full rounded-full bg-foreground transition-[width] duration-200"
+              className="h-full bg-ink transition-[width] duration-200"
               style={{
                 width: `${facesProgress.total ? (100 * facesProgress.done) / facesProgress.total : 0}%`,
               }}
             />
           </div>
-          <p className="text-xs text-neutral-500">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
             {t('readingFaces', { done: facesProgress.done, total: facesProgress.total })}
           </p>
         </div>
@@ -541,14 +563,14 @@ export default function Home() {
       </div>
 
       {photos.length > 0 && !clipEnabled && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-500/30 p-3">
-          <p className="text-xs text-neutral-500">
-            <span className="font-medium text-foreground">{t('smartTitle')}</span>
+        <div className="flex items-center justify-between gap-3 border-2 border-ink p-3">
+          <p className="text-xs text-muted">
+            <span className="font-extrabold text-ink">{t('smartTitle')}</span>
             {t('smartBody')}
           </p>
           <button
             onClick={enableClip}
-            className="shrink-0 rounded-lg bg-foreground px-3 py-2 text-xs font-medium text-background"
+            className="shrink-0 bg-accent px-3 py-2 text-xs font-semibold text-white"
           >
             {t('enable')}
           </button>
@@ -560,17 +582,17 @@ export default function Home() {
       {tripPhotos.length > 0 ? (
         <>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-neutral-500">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
               {t('stats', { photos: readyCount, keepers: keepers.length, culled: readyCount - keepers.length })}
               {unsupported > 0 && t('statsUnsupported', { n: unsupported })}
             </p>
-            <div className="flex overflow-hidden rounded-lg border border-neutral-500/40 text-xs">
-              {(['all', 'keepers'] as const).map((v) => (
+            <div className="flex border-2 border-ink text-xs">
+              {(['all', 'keepers'] as const).map((v, i) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-3 py-1.5 font-medium ${
-                    view === v ? 'bg-foreground text-background' : 'text-neutral-500'
+                  className={`px-3 py-1.5 font-bold ${i === 1 ? 'border-s-2 border-ink' : ''} ${
+                    view === v ? 'bg-ink text-ground' : 'text-muted'
                   }`}
                 >
                   {v === 'all' ? t('viewAll') : t('viewKeepers')}
@@ -585,10 +607,10 @@ export default function Home() {
                 <button
                   key={th ?? 'all'}
                   onClick={() => setThemeFilter(th)}
-                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${
+                  className={`shrink-0 text-[11px] font-semibold ${
                     themeFilter === th
-                      ? 'border-foreground bg-foreground text-background'
-                      : 'border-neutral-500/40 text-neutral-500'
+                      ? 'bg-accent px-2.5 py-1 text-white'
+                      : 'border border-line px-[9px] py-[3px] text-muted'
                   }`}
                 >
                   {th ? themeLabel(lang, th) : t('allThemes')}
@@ -624,16 +646,23 @@ export default function Home() {
                 // keeps the scrollbar stable until a section is first rendered.
                 style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 480px' }}
               >
+                <div className="-mx-4 border-t-2 border-ink" />
                 <div className="flex items-center justify-between gap-2">
                   <button
                     onClick={() => toggleDay(label)}
                     aria-expanded={!collapsed}
                     className="flex min-w-0 flex-1 items-center gap-1.5 text-start"
                   >
-                    <span className="shrink-0 text-xs text-neutral-400">
-                      {collapsed ? (lang === 'he' ? '◂' : '▸') : '▾'}
-                    </span>
-                    <h2 className="truncate text-sm font-medium text-neutral-500">
+                    {collapsed ? (
+                      lang === 'he' ? (
+                        <ArrowLeft className="shrink-0 text-ink" size={14} strokeWidth={2.5} />
+                      ) : (
+                        <ChevronRight className="shrink-0 text-ink" size={14} strokeWidth={2.5} />
+                      )
+                    ) : (
+                      <ChevronDown className="shrink-0 text-ink" size={14} strokeWidth={2.5} />
+                    )}
+                    <h2 className="truncate text-[13px] font-extrabold uppercase tracking-wide text-ink">
                       {new Date(label).toLocaleDateString(lang === 'he' ? 'he-IL' : 'en-US', {
                         weekday: 'short',
                         year: 'numeric',
@@ -641,22 +670,27 @@ export default function Home() {
                         day: 'numeric',
                       })}
                       {places.get(label) && (
-                        <span className="text-neutral-400"> — {places.get(label)}</span>
+                        <span className="font-semibold normal-case text-accent"> · {places.get(label)}</span>
                       )}
                     </h2>
                     {collapsed && (
-                      <span className="shrink-0 text-xs text-neutral-400">
+                      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">
                         · {t('dayPhotos', { n: dayCount })}
                       </span>
                     )}
                   </button>
+                  {!collapsed && (
+                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                      {t('dayPhotos', { n: dayCount })}
+                    </span>
+                  )}
                   <button
                     onClick={() => removeDay(label, dayClusters)}
                     aria-label={t('deleteDay')}
                     title={t('deleteDay')}
-                    className="shrink-0 rounded-lg px-2 py-1 text-xs text-neutral-500/70"
+                    className="shrink-0 px-1 py-1 text-muted"
                   >
-                    🗑
+                    <Trash2 size={14} strokeWidth={2.25} />
                   </button>
                 </div>
                 {!collapsed && (
@@ -685,7 +719,7 @@ export default function Home() {
                         ) : (
                           <div
                             key={c.id}
-                            className="flex flex-wrap gap-1 rounded-lg border border-neutral-500/40 p-1"
+                            className="flex flex-wrap gap-1 border-2 border-ink p-1"
                           >
                             {c.photos.map((p) => (
                               <Cell
@@ -708,11 +742,21 @@ export default function Home() {
         </>
       ) : (
         !busy && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-neutral-500">
-            <p className="text-base font-medium text-foreground">{t('noPhotos')}</p>
-            <p className="max-w-xs text-sm">
+          <div className="flex flex-1 flex-col items-start justify-center gap-3 text-start">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-accent">
+              {t('onDeviceOnly')}
+            </p>
+            <p className="text-[32px] font-extrabold leading-[1.05] text-ink">{t('noPhotos')}</p>
+            <p className="max-w-xs text-sm text-muted">
               {t('noPhotosBody')}
             </p>
+            <button
+              onClick={addPhotos}
+              disabled={progress.running || receiving}
+              className="mt-1 border-2 border-ink px-3.5 py-2.5 text-[13px] font-semibold text-ink disabled:opacity-45"
+            >
+              {t('addPhotos')} +
+            </button>
           </div>
         )
       )}
@@ -720,20 +764,20 @@ export default function Home() {
       {keepers.length > 0 && (
         /* Sticky (in-flow), not fixed: iOS mis-anchors fixed bars during scroll
            momentum. mt-auto keeps it at the viewport bottom for short content. */
-        <footer className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-neutral-500/30 bg-background/95 backdrop-blur">
+        <footer className="sticky bottom-0 z-20 -mx-4 mt-auto border-t-2 border-ink bg-[rgba(243,242,242,.96)] backdrop-blur">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            <span className="text-sm font-medium">{t('keepersCount', { n: keepers.length })}</span>
+            <span className="text-sm font-extrabold text-ink">{t('keepersCount', { n: keepers.length })}</span>
             <div className="flex gap-2">
               <button
                 onClick={exportList}
-                className="rounded-lg border border-neutral-500/50 px-3 py-2 text-xs font-medium"
+                className="border-2 border-ink px-3 py-2 text-xs font-semibold text-ink"
               >
                 {t('exportList')}
               </button>
               {canShare && shareableFiles.length > 0 && (
                 <button
                   onClick={shareKeepers}
-                  className="rounded-lg border border-neutral-500/50 px-3 py-2 text-xs font-medium"
+                  className="border-2 border-ink px-3 py-2 text-xs font-semibold text-ink"
                 >
                   {t('shareN', { n: shareableFiles.length })}
                 </button>
@@ -741,15 +785,21 @@ export default function Home() {
               <button
                 onClick={() => setClipOpen(true)}
                 aria-label={t('tripClip')}
-                className="rounded-lg border border-neutral-500/50 px-3 py-2 text-xs font-medium"
+                className="flex items-center gap-1.5 border-2 border-ink px-3 py-2 text-xs font-semibold text-ink"
               >
+                <LayoutGrid size={14} strokeWidth={2.25} />
                 {t('clipBtn')}
               </button>
               <button
                 onClick={() => setBookOpen(true)}
-                className="rounded-lg bg-foreground px-3 py-2 text-xs font-medium text-background"
+                className="flex items-center gap-1.5 bg-accent px-3 py-2 text-xs font-semibold text-white"
               >
                 {t('bookBtn')}
+                {lang === 'he' ? (
+                  <ArrowLeft size={14} strokeWidth={2.5} />
+                ) : (
+                  <ArrowRight size={14} strokeWidth={2.5} />
+                )}
               </button>
             </div>
           </div>
@@ -824,28 +874,29 @@ function Cell({
   dim: boolean;
   onOpen: () => void;
 }) {
+  const { t } = useI18n();
   const kept = isKeeper(photo, cluster, decisions);
   const decision = decisions.get(photo.id);
   const badge = decision
     ? decision === 'keep'
-      ? { label: '✓', cls: 'bg-emerald-500' }
+      ? { label: '✓', cls: 'bg-ink text-ground' }
       : decision === 'book'
-        ? { label: '📖', cls: 'bg-amber-500' }
-        : { label: '✕', cls: 'bg-red-500' }
+        ? { label: t('badgeBook'), cls: 'bg-accent text-white' }
+        : { label: '✕', cls: 'bg-accent text-white' }
     : cluster.photos.length > 1 && cluster.bestId === photo.id
-      ? { label: '★', cls: 'bg-emerald-500' }
+      ? { label: t('badgeBest'), cls: 'bg-ink text-ground' }
       : null;
 
   return (
     <button
       onClick={onOpen}
-      className={`relative h-20 w-20 ${dim && !kept ? 'opacity-45' : ''}`}
+      className={`relative h-20 w-20 ${dim && !kept ? 'opacity-40' : ''}`}
       aria-label={`Review ${photo.name}`}
     >
       <Thumb id={photo.id} alt={photo.name} />
       {badge && (
         <span
-          className={`absolute left-1 top-1 rounded px-1 text-[10px] font-semibold leading-4 text-white ${badge.cls}`}
+          className={`absolute start-0 top-0 px-[5px] py-0.5 text-[9px] font-bold uppercase leading-none tracking-[0.06em] ${badge.cls}`}
         >
           {badge.label}
         </span>
