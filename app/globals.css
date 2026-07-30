@@ -40,3 +40,28 @@ body {
 :lang(he) {
   font-family: var(--font-heebo), var(--font-archivo), Arial, Helvetica, sans-serif;
 }
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Pointer-only (mouse/trackpad): touch taps shouldn't leave a stuck :hover
+   state on a one-shot mobile PWA. One step darker per the design vocabulary;
+   ghost (bordered, unfilled) buttons get a faint ink tint instead. */
+@media (hover: hover) and (pointer: fine) {
+  button.bg-accent:not(:disabled):hover {
+    background-color: var(--accent-hover);
+  }
+  button.bg-ink:not(:disabled):hover {
+    background-color: #000;
+  }
+  button.border-ink:not(:disabled):not(.bg-accent):not(.bg-ink):hover {
+    background-color: rgba(32, 30, 29, 0.06);
+  }
+}

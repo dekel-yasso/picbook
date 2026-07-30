@@ -369,16 +369,16 @@ export function ReviewOverlay({
             <button
               onClick={onClose}
               aria-label={t('close')}
-              className="absolute left-3 top-3 rounded-full bg-ink/70 px-3 py-1.5 text-ground"
+              className="absolute left-3 top-3 bg-ink/70 px-3 py-1.5 text-ground"
             >
               <X size={18} strokeWidth={2.25} />
             </button>
-            <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1.5 text-xs font-semibold text-ground">
+            <span className="absolute left-1/2 top-3 -translate-x-1/2 bg-ink/70 px-3 py-1.5 text-xs font-semibold text-ground">
               {safeIndex + 1} / {list.length}
             </span>
             <button
               onClick={() => decideAndAdvance('reject')}
-              className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full border-2 border-ground bg-ink/70 px-5 py-2.5 text-sm font-semibold text-ground"
+              className="absolute bottom-3 left-3 flex items-center gap-1.5 border-2 border-ground bg-ink/70 px-5 py-2.5 text-sm font-semibold text-ground"
             >
               <X size={16} strokeWidth={2.5} />
               {t('reject')}
@@ -386,13 +386,13 @@ export function ReviewOverlay({
             <button
               onClick={() => decideAndAdvance('book')}
               aria-label={t('mustBook')}
-              className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-accent px-5 py-2.5 text-sm font-semibold text-white"
             >
               <BookOpen size={18} strokeWidth={2.25} />
             </button>
             <button
               onClick={() => decideAndAdvance('keep')}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-ground"
+              className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-ink px-5 py-2.5 text-sm font-semibold text-ground"
             >
               <Check size={16} strokeWidth={2.5} />
               {t('keep')}

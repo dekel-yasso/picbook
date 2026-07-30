@@ -661,7 +661,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
               src={videoUrl}
               controls
               playsInline
-              className="w-full rounded-lg bg-black"
+              className="w-full bg-black"
               aria-label={t('clipPreview')}
             />
           )}
