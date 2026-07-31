@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { setAppBusy } from '@/lib/engine/app-busy';
 import { clusterPhotos, isKeeper, takenTime, type Cluster } from '@/lib/engine/cluster';
 import { getDB } from '@/lib/engine/db';
 import { loadDecisions, saveDecision } from '@/lib/engine/decisions';
@@ -375,6 +376,10 @@ export default function Home() {
   // against a scrolled/momentum viewport otherwise, opening them half off-screen.
   const overlayOpen =
     !!reviewing || !!burstClusterId || bookOpen || clipOpen || accountOpen || tripSwitcherOpen || onboarded === false;
+  // Tells the service worker's auto-reload-on-update (sw-register.tsx) not to
+  // yank the user out of an open overlay — e.g. mid-review, or right after
+  // rendering a book/clip that hasn't been saved yet.
+  useEffect(() => setAppBusy(overlayOpen), [overlayOpen]);
   useEffect(() => {
     if (!overlayOpen) return;
     const y = window.scrollY;
