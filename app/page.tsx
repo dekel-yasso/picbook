@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Cloud,
+  Layers,
   LayoutGrid,
   Trash2,
   X,
@@ -69,11 +70,11 @@ export default function Home() {
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [burstClusterId, setBurstClusterId] = useState<string | null>(null);
-  // Opening a photo from a multi-photo cluster offers burst mode (one screen
-  // per cluster) instead of the usual one-photo-at-a-time reviewer.
-  const openPhoto = useCallback((photo: PhotoMeta, cluster: Cluster) => {
-    if (cluster.photos.length > 1) setBurstClusterId(cluster.id);
-    else setReviewing(photo.id);
+  // Tapping a photo always opens the normal one-photo-at-a-time reviewer
+  // (swipe left/right through every photo in view, bursts included). Burst
+  // mode is a separate, explicit entry point — see the frame's burst button.
+  const openPhoto = useCallback((photo: PhotoMeta) => {
+    setReviewing(photo.id);
   }, []);
 
   // Undo-toast pattern for delete photo/day/trip: the action hides the record
@@ -926,7 +927,7 @@ export default function Home() {
                           cluster={cluster}
                           decisions={decisions}
                           dim={false}
-                          onOpen={() => openPhoto(photo, cluster)}
+                          onOpen={() => openPhoto(photo)}
                         />
                       ))
                     : dayClusters.map((c) =>
@@ -937,13 +938,21 @@ export default function Home() {
                             cluster={c}
                             decisions={decisions}
                             dim
-                            onOpen={() => openPhoto(c.photos[0], c)}
+                            onOpen={() => openPhoto(c.photos[0])}
                           />
                         ) : (
                           <div
                             key={c.id}
-                            className="flex flex-wrap gap-1 border-2 border-ink p-1"
+                            className="relative flex flex-wrap gap-1 border-2 border-ink p-1"
                           >
+                            <button
+                              onClick={() => setBurstClusterId(c.id)}
+                              aria-label={t('burstReviewBtn')}
+                              title={t('burstReviewBtn')}
+                              className="absolute end-0 top-0 z-10 flex h-5 w-5 items-center justify-center bg-accent text-white"
+                            >
+                              <Layers size={11} strokeWidth={2.5} />
+                            </button>
                             {c.photos.map((p) => (
                               <Cell
                                 key={p.id}
@@ -951,7 +960,7 @@ export default function Home() {
                                 cluster={c}
                                 decisions={decisions}
                                 dim
-                                onOpen={() => openPhoto(p, c)}
+                                onOpen={() => openPhoto(p)}
                               />
                             ))}
                           </div>

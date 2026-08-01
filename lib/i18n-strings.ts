@@ -196,6 +196,7 @@ export const STRINGS = {
     dayDone: 'Done',
     dayReviewed: '{done} / {total} reviewed',
     // burst review mode (3a)
+    burstReviewBtn: 'Review burst',
     burstHeader: 'Burst · {n} photos',
     burstProgress: '{i} / {n} bursts',
     burstBestShotHint: 'Best shot — tap another to swap',
@@ -368,6 +369,7 @@ export const STRINGS = {
     allReviewed: 'הכול נסקר',
     dayDone: 'הושלם',
     dayReviewed: '{done} / {total} נסקרו',
+    burstReviewBtn: 'סקירת סדרה',
     burstHeader: 'סדרה · {n} תמונות',
     burstProgress: '{i} / {n} סדרות',
     burstBestShotHint: 'התמונה הטובה ביותר — הקישו על אחרת להחליף',
