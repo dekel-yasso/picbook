@@ -261,7 +261,7 @@ export async function renderClip(
         if (fill.mode === 'travel') {
           drawTravel(ctx, bmp, width, height, fill.axis!, p, idx % 2 === 1);
         } else if (fill.mode === 'repeat') {
-          drawRepeat(ctx, bmp, width, height, fill.axis!, p);
+          drawRepeat(ctx, bmp, width, height, fill.axis!, p, idx % 2 === 1);
         } else {
           // Alternate zoom direction and pan drift per segment for variety.
           const zoomIn = idx % 2 === 0;
@@ -483,8 +483,10 @@ function drawTravel(
   }
 }
 
-/** The same whole photo pops in twice, anchored at the two ends of the
- *  leftover axis, staggered — fills the frame with rhythm instead of motion. */
+/** The same whole photo pops in three times — first one edge of the leftover
+ *  axis, then the other, then a third landing centered on top, free to
+ *  overlap the first two if the frame doesn't have room for all three clear
+ *  of each other. Fills the frame with rhythm instead of motion. */
 function drawRepeat(
   ctx: OffscreenCanvasRenderingContext2D,
   bmp: ImageBitmap,
@@ -492,25 +494,27 @@ function drawRepeat(
   height: number,
   axis: 'x' | 'y',
   p: number,
+  reverse: boolean,
 ) {
   drawBlurredBackdrop(ctx, bmp, width, height);
   const { w, h } = containSize(bmp, width, height);
   const popIn = (amt: number) => Math.max(0, Math.min(1, amt));
-  const popA = ease(popIn(p / 0.18));
-  const popB = ease(popIn((p - 0.3) / 0.18));
+  const popA = ease(popIn(p / 0.16));
+  const popB = ease(popIn((p - 0.26) / 0.16));
+  const popC = ease(popIn((p - 0.52) / 0.16));
 
-  const drawCopy = (amt: number, atEnd: boolean) => {
+  const drawCopy = (amt: number, slot: 'start' | 'end' | 'middle') => {
     if (amt <= 0) return;
     let x: number;
     let y: number;
     if (axis === 'x') {
       const inset = width * 0.03;
-      x = atEnd ? width - w - inset : inset;
+      x = slot === 'middle' ? (width - w) / 2 : slot === 'end' ? width - w - inset : inset;
       y = (height - h) / 2;
     } else {
       const inset = height * 0.03;
       x = (width - w) / 2;
-      y = atEnd ? height - h - inset : inset;
+      y = slot === 'middle' ? (height - h) / 2 : slot === 'end' ? height - h - inset : inset;
     }
     const s = 0.88 + 0.12 * amt;
     const cx = x + w / 2;
@@ -523,8 +527,11 @@ function drawRepeat(
     ctx.drawImage(bmp, x, y, w, h);
     ctx.restore();
   };
-  drawCopy(popA, false);
-  drawCopy(popB, true);
+  // Drawn in order, so the last-arriving (centered) copy lands on top —
+  // free to overlap the first two rather than being squeezed to fit clear.
+  drawCopy(popA, reverse ? 'end' : 'start');
+  drawCopy(popB, reverse ? 'start' : 'end');
+  drawCopy(popC, 'middle');
 }
 
 function drawTitleCard(
