@@ -434,6 +434,23 @@ function containSize(bmp: ImageBitmap, width: number, height: number) {
   return { w: bmp.width * scale, h: bmp.height * scale, scale };
 }
 
+/** Fills the whole frame with a blurred, darkened, zoomed-in cover-crop of
+ *  the same photo, standing in for flat black behind travel/repeat — keeps
+ *  the leftover space from reading as empty without competing for attention
+ *  with the sharp foreground print. */
+function drawBlurredBackdrop(ctx: OffscreenCanvasRenderingContext2D, bmp: ImageBitmap, width: number, height: number) {
+  // Extra zoom hides the softened edges a blur would otherwise leave visible
+  // at the frame border.
+  const scale = Math.max(width / bmp.width, height / bmp.height) * 1.15;
+  const w = bmp.width * scale;
+  const h = bmp.height * scale;
+  const blur = Math.round(Math.min(width, height) * 0.045);
+  ctx.save();
+  ctx.filter = `blur(${blur}px) brightness(0.5) saturate(1.05)`;
+  ctx.drawImage(bmp, (width - w) / 2, (height - h) / 2, w, h);
+  ctx.restore();
+}
+
 /** The whole photo glides once from one edge of the leftover axis to the
  *  other over the segment's duration — no cropping, nothing duplicated. */
 function drawTravel(
@@ -445,6 +462,7 @@ function drawTravel(
   p: number,
   reverse: boolean,
 ) {
+  drawBlurredBackdrop(ctx, bmp, width, height);
   const { w, h } = containSize(bmp, width, height);
   const e = ease(reverse ? 1 - p : p);
   if (axis === 'x') {
@@ -468,6 +486,7 @@ function drawRepeat(
   axis: 'x' | 'y',
   p: number,
 ) {
+  drawBlurredBackdrop(ctx, bmp, width, height);
   const { w, h } = containSize(bmp, width, height);
   const popIn = (amt: number) => Math.max(0, Math.min(1, amt));
   const popA = ease(popIn(p / 0.18));
