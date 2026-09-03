@@ -440,14 +440,21 @@ function containSize(bmp: ImageBitmap, width: number, height: number) {
  *  with the sharp foreground print. */
 function drawBlurredBackdrop(ctx: OffscreenCanvasRenderingContext2D, bmp: ImageBitmap, width: number, height: number) {
   // Extra zoom hides the softened edges a blur would otherwise leave visible
-  // at the frame border.
-  const scale = Math.max(width / bmp.width, height / bmp.height) * 1.15;
+  // at the frame border — bigger than the blur radius needs, since a heavier
+  // blur spreads pixels further toward the edge.
+  const scale = Math.max(width / bmp.width, height / bmp.height) * 1.25;
   const w = bmp.width * scale;
   const h = bmp.height * scale;
-  const blur = Math.round(Math.min(width, height) * 0.045);
+  const blur = Math.round(Math.min(width, height) * 0.08);
   ctx.save();
-  ctx.filter = `blur(${blur}px) brightness(0.5) saturate(1.05)`;
+  ctx.filter = `blur(${blur}px) brightness(0.3) saturate(1.05)`;
   ctx.drawImage(bmp, (width - w) / 2, (height - h) / 2, w, h);
+  ctx.restore();
+  // A flat scrim on top keeps this reliably dark regardless of how bright the
+  // source photo is — brightness() alone barely dims an already-bright shot.
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(0, 0, width, height);
   ctx.restore();
 }
 
