@@ -125,20 +125,23 @@ export interface MapSeg {
   toName?: string;
 }
 
-/** Draw one frame of a map transition at progress p (0..1). */
+/** Draw one frame of a map transition at progress p (0..1). `width`/`height`
+ *  need not be square — the camera keeps equal x/y scale (no map stretching)
+ *  and simply shows more of the wider axis. */
 export function drawMapFrame(
   ctx: OffscreenCanvasRenderingContext2D,
-  size: number,
+  width: number,
+  height: number,
   land: Land | null,
   seg: MapSeg,
   p: number,
 ) {
   // Background
-  const bg = ctx.createLinearGradient(0, 0, 0, size);
+  const bg = ctx.createLinearGradient(0, 0, 0, height);
   bg.addColorStop(0, '#070a10');
   bg.addColorStop(1, '#0e141d');
   ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, width, height);
 
   const [tox, toy] = mercator(seg.to.lat, seg.to.lon);
 
@@ -169,10 +172,16 @@ export function drawMapFrame(
     arc = greatCircle(seg.from, seg.to, 72);
   }
 
-  const px = (mx: number) => ((mx - cam.cx) / cam.span) * size + size / 2;
-  const py = (my: number) => ((my - cam.cy) / cam.span) * size + size / 2;
-  const viewMinX = cam.cx - cam.span;
-  const viewMaxX = cam.cx + cam.span;
+  // Equal x/y scale (derived from height) so the map never stretches — a wide
+  // or tall frame just shows more of the long axis, like widening a window.
+  const scale = height / cam.span;
+  const px = (mx: number) => (mx - cam.cx) * scale + width / 2;
+  const py = (my: number) => (my - cam.cy) * scale + height / 2;
+  // 2x overscan on the culling bounds (unchanged from the original square
+  // math), widened by the frame's own aspect on x.
+  const spanX = cam.span * (width / height);
+  const viewMinX = cam.cx - spanX;
+  const viewMaxX = cam.cx + spanX;
   const viewMinY = cam.cy - cam.span;
   const viewMaxY = cam.cy + cam.span;
 
@@ -201,7 +210,9 @@ export function drawMapFrame(
   // Graticule: faint lat/lon grid — gives the camera visible motion even over
   // featureless inland areas, and the classic flight-map texture.
   {
-    const lonSpanDeg = cam.span * 360;
+    // True (non-overscanned) visible width in degrees — picks the tick
+    // spacing that actually fits the frame, not the culling overscan.
+    const lonSpanDeg = (width / height) * cam.span * 360;
     const steps = [0.25, 0.5, 1, 2, 5, 10, 20, 40];
     const step = steps.find((s) => lonSpanDeg / s <= 9) ?? 40;
     ctx.strokeStyle = 'rgba(170,195,230,0.07)';
@@ -212,7 +223,7 @@ export function drawMapFrame(
       const x = px(lon / 360 + 0.5);
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      ctx.lineTo(x, size);
+      ctx.lineTo(x, height);
       ctx.stroke();
     }
     const latMax = invMercatorY(viewMinY);
@@ -221,18 +232,20 @@ export function drawMapFrame(
       const y = py(mercator(lat, 0)[1]);
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(size, y);
+      ctx.lineTo(width, y);
       ctx.stroke();
     }
   }
 
-  // Edge vignette keeps the focus center-frame.
+  // Edge vignette keeps the focus center-frame. Radii key off the shorter
+  // axis so a wide/tall frame doesn't get over-darkened along its long axis.
   {
-    const v = ctx.createRadialGradient(size / 2, size / 2, size * 0.45, size / 2, size / 2, size * 0.75);
+    const base = Math.min(width, height);
+    const v = ctx.createRadialGradient(width / 2, height / 2, base * 0.45, width / 2, height / 2, base * 0.75);
     v.addColorStop(0, 'rgba(0,0,0,0)');
     v.addColorStop(1, 'rgba(0,0,0,0.38)');
     ctx.fillStyle = v;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, width, height);
   }
 
   // Route arc drawing itself, with a glowing head

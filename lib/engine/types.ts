@@ -106,10 +106,14 @@ export type ClipSegment =
 
 export type ClipTransition = 'fade' | 'slide' | 'zoom' | 'wipe' | 'mix';
 
+/** Output frame shape. Default 'square' keeps today's 1080×1080 behavior. */
+export type ClipAspect = 'square' | 'wide' | 'tall';
+
 export interface ClipPlan {
   segments: ClipSegment[];
   photoCount: number;
   transition?: ClipTransition;
+  aspect?: ClipAspect;
 }
 
 export type EngineRequest =

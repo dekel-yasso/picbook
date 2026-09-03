@@ -7,9 +7,8 @@ import { planBook } from './book';
 import { getDB } from './db';
 import { distanceKm, drawMapFrame, loadLand, type GeoPoint } from './geo';
 import { asBlob } from './images';
-import type { ClipPlan, ClipSegment, ClipTransition, EngineEvent, PhotoMeta } from './types';
+import type { ClipAspect, ClipPlan, ClipSegment, ClipTransition, EngineEvent, PhotoMeta } from './types';
 
-const SIZE = 1080;
 const FPS = 30;
 const PHOTO_S = 1.6;
 const TITLE_S = 1.4;
@@ -18,8 +17,58 @@ const BITRATE = 5_000_000;
 // Enough resolution for 1080 output; renditions (2048px) downscale, thumbs upscale soft.
 const DECODE_MAX = 1600;
 
+/** Output pixel dimensions per frame shape. The shorter side is always 1080,
+ *  so every layout constant tuned against the old square SIZE (margins, font
+ *  sizes) still reads correctly — only the long axis grows. */
+function dimsForAspect(aspect: ClipAspect = 'square'): { width: number; height: number } {
+  switch (aspect) {
+    case 'wide':
+      return { width: 1920, height: 1080 };
+    case 'tall':
+      return { width: 1080, height: 1920 };
+    default:
+      return { width: 1080, height: 1080 };
+  }
+}
+
+/** A photo whose orientation doesn't match the frame (a portrait shot in a
+ *  wide frame, or the reverse) gets a different treatment than a normal
+ *  cover-crop + Ken Burns pan — see pickFillPlan. */
+interface FillPlan {
+  mode: 'cover' | 'travel' | 'repeat';
+  axis?: 'x' | 'y';
+}
+
+// Below this fraction of leftover space, a mismatch isn't worth a special
+// treatment — just cover-crop it like anything else. This is the same
+// fraction a normal cover-crop would lose off the photo (e.g. a common 3:2
+// photo loses ~16% cropped into 16:9 — unremarkable; a 4:3 photo loses 25%,
+// worth the fill treatment; a true portrait/landscape flip loses 55%+).
+const MISMATCH_SLACK = 0.2;
+
+function pickFillPlan(aspect: ClipAspect, bmpW: number, bmpH: number, width: number, height: number, seedKey: string): FillPlan {
+  // Square keeps its original, already-shipped cover-crop behavior — this
+  // treatment only kicks in for the new wide/tall frame shapes.
+  if (aspect === 'square') return { mode: 'cover' };
+  const scale = Math.min(width / bmpW, height / bmpH);
+  const w = bmpW * scale;
+  const h = bmpH * scale;
+  const leftoverX = (width - w) / width;
+  const leftoverY = (height - h) / height;
+  const slack = Math.max(leftoverX, leftoverY);
+  if (slack < MISMATCH_SLACK) return { mode: 'cover' };
+  const axis = leftoverX > leftoverY ? 'x' : 'y';
+  // Deterministic per-photo pick (stable across re-renders) instead of a
+  // fresh Math.random() call, so "Re-render" doesn't reshuffle the look.
+  let hash = 0;
+  for (let i = 0; i < seedKey.length; i++) hash = (hash * 31 + seedKey.charCodeAt(i)) | 0;
+  return { mode: (hash & 1) === 0 ? 'travel' : 'repeat', axis };
+}
+
 // A day counts as "moved" when its median location shifts more than this.
 const MOVE_KM = 25;
+
+const ease = (x: number) => x * x * (3 - 2 * x); // smoothstep
 
 /** Reuses the book planner: same day structure, quotas, titles, and pins.
  *  With maps on, travel days get a flight-map segment before their title. */
@@ -109,8 +158,9 @@ export async function renderClip(
   if (typeof VideoEncoder === 'undefined') {
     throw new Error('Video export needs a newer browser (WebCodecs is unavailable here)');
   }
+  const { width, height } = dimsForAspect(plan.aspect);
   const soundtrack = sound && sound.chunks.length > 0 ? sound : null;
-  const codec = await pickCodec();
+  const codec = await pickCodec(width, height);
   const db = await getDB();
   // Land silhouettes for map segments (cached after first fetch; null offline).
   const land = plan.segments.some((s) => s.kind === 'map') ? await loadLand() : null;
@@ -131,7 +181,7 @@ export async function renderClip(
 
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
-    video: { codec: 'avc', width: SIZE, height: SIZE },
+    video: { codec: 'avc', width, height },
     ...(soundtrack
       ? {
           audio: {
@@ -149,9 +199,9 @@ export async function renderClip(
       throw e;
     },
   });
-  encoder.configure({ codec, width: SIZE, height: SIZE, bitrate: BITRATE, framerate: FPS });
+  encoder.configure({ codec, width, height, bitrate: BITRATE, framerate: FPS });
 
-  const canvas = new OffscreenCanvas(SIZE, SIZE);
+  const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('no 2d context');
 
@@ -199,22 +249,29 @@ export async function renderClip(
     const { seg, duration } = timeline[idx];
     ctx.globalAlpha = alpha;
     if (seg.kind === 'title') {
-      drawTitleCard(ctx, seg);
+      drawTitleCard(ctx, width, height, seg);
     } else if (seg.kind === 'map') {
-      drawMapFrame(ctx, SIZE, land, seg, Math.max(0, Math.min(1, t / duration)));
+      drawMapFrame(ctx, width, height, land, seg, Math.max(0, Math.min(1, t / duration)));
     } else {
       await ensureBitmap(idx);
       const bmp = bitmaps.get(idx);
       if (bmp) {
         const p = Math.min(1, t / duration);
-        // Alternate zoom direction and pan drift per segment for variety.
-        const zoomIn = idx % 2 === 0;
-        const zoom = zoomIn ? 1.05 + 0.12 * p : 1.17 - 0.12 * p;
-        const drift = 0.015 * (idx % 3 === 0 ? 1 : -1);
-        drawCover(ctx, bmp, zoom, drift * p, drift * 0.6 * p, metas.get(seg.id)?.faceBox);
+        const fill = pickFillPlan(plan.aspect ?? 'square', bmp.width, bmp.height, width, height, seg.id);
+        if (fill.mode === 'travel') {
+          drawTravel(ctx, bmp, width, height, fill.axis!, p, idx % 2 === 1);
+        } else if (fill.mode === 'repeat') {
+          drawRepeat(ctx, bmp, width, height, fill.axis!, p);
+        } else {
+          // Alternate zoom direction and pan drift per segment for variety.
+          const zoomIn = idx % 2 === 0;
+          const zoom = zoomIn ? 1.05 + 0.12 * p : 1.17 - 0.12 * p;
+          const drift = 0.015 * (idx % 3 === 0 ? 1 : -1);
+          drawCover(ctx, bmp, width, height, zoom, drift * p, drift * 0.6 * p, metas.get(seg.id)?.faceBox);
+        }
       } else {
         ctx.fillStyle = '#111';
-        ctx.fillRect(0, 0, SIZE, SIZE);
+        ctx.fillRect(0, 0, width, height);
       }
     }
     ctx.globalAlpha = 1;
@@ -222,7 +279,6 @@ export async function renderClip(
 
   const style = plan.transition ?? 'mix';
   const MIX_ORDER: Exclude<ClipTransition, 'mix'>[] = ['fade', 'slide', 'zoom', 'wipe'];
-  const ease = (x: number) => x * x * (3 - 2 * x); // smoothstep
 
   let active = 0;
   for (let f = 0; f < totalFrames; f++) {
@@ -235,7 +291,7 @@ export async function renderClip(
     const next = timeline[active + 1];
 
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillRect(0, 0, width, height);
     if (!next || time < next.start) {
       await drawSegment(active, time - cur.start, 1);
     } else {
@@ -247,11 +303,11 @@ export async function renderClip(
       switch (kind) {
         case 'slide': // push: both move left together
           ctx.save();
-          ctx.translate(-e * SIZE, 0);
+          ctx.translate(-e * width, 0);
           await drawSegment(active, tCur, 1);
           ctx.restore();
           ctx.save();
-          ctx.translate((1 - e) * SIZE, 0);
+          ctx.translate((1 - e) * width, 0);
           await drawSegment(active + 1, tNext, 1);
           ctx.restore();
           break;
@@ -260,9 +316,9 @@ export async function renderClip(
           await drawSegment(active + 1, tNext, 1);
           const s = 1 + 0.25 * e;
           ctx.save();
-          ctx.translate(SIZE / 2, SIZE / 2);
+          ctx.translate(width / 2, height / 2);
           ctx.scale(s, s);
-          ctx.translate(-SIZE / 2, -SIZE / 2);
+          ctx.translate(-width / 2, -height / 2);
           await drawSegment(active, tCur, 1 - e);
           ctx.restore();
           break;
@@ -271,7 +327,7 @@ export async function renderClip(
           await drawSegment(active, tCur, 1);
           ctx.save();
           ctx.beginPath();
-          ctx.rect(0, 0, e * SIZE, SIZE);
+          ctx.rect(0, 0, e * width, height);
           ctx.clip();
           await drawSegment(active + 1, tNext, 1);
           ctx.restore();
@@ -326,14 +382,14 @@ export async function renderClip(
   return new Uint8Array(muxer.target.buffer);
 }
 
-async function pickCodec(): Promise<string> {
+async function pickCodec(width: number, height: number): Promise<string> {
   const candidates = ['avc1.640028', 'avc1.4d0028', 'avc1.42e028'];
   for (const codec of candidates) {
     try {
       const { supported } = await VideoEncoder.isConfigSupported({
         codec,
-        width: SIZE,
-        height: SIZE,
+        width,
+        height,
         bitrate: BITRATE,
         framerate: FPS,
       });
@@ -348,52 +404,135 @@ async function pickCodec(): Promise<string> {
 function drawCover(
   ctx: OffscreenCanvasRenderingContext2D,
   bmp: ImageBitmap,
+  width: number,
+  height: number,
   zoom: number,
   panX: number,
   panY: number,
   focus?: PhotoMeta['faceBox'],
 ) {
-  const scale = Math.max(SIZE / bmp.width, SIZE / bmp.height) * zoom;
+  const scale = Math.max(width / bmp.width, height / bmp.height) * zoom;
   const w = bmp.width * scale;
   const h = bmp.height * scale;
   // Center the cover-fit on the focus region (if any), clamped so the image
   // still fully covers the frame — keeps faces from sliding off-canvas.
-  let ox = (SIZE - w) / 2;
-  let oy = (SIZE - h) / 2;
+  let ox = (width - w) / 2;
+  let oy = (height - h) / 2;
   if (focus) {
     const fx = (focus.x + focus.w / 2) * w;
     const fy = (focus.y + focus.h / 2) * h;
-    ox = Math.min(0, Math.max(SIZE - w, SIZE / 2 - fx));
-    oy = Math.min(0, Math.max(SIZE - h, SIZE / 2 - fy));
+    ox = Math.min(0, Math.max(width - w, width / 2 - fx));
+    oy = Math.min(0, Math.max(height - h, height / 2 - fy));
   }
-  ctx.drawImage(bmp, ox + panX * SIZE, oy + panY * SIZE, w, h);
+  ctx.drawImage(bmp, ox + panX * width, oy + panY * height, w, h);
 }
 
-function drawTitleCard(ctx: OffscreenCanvasRenderingContext2D, seg: { text: string; sub?: string }) {
+/** Whole, uncropped photo sized to fill the constrained axis — used by both
+ *  travel and repeat so neither ever crops a mismatched photo. */
+function containSize(bmp: ImageBitmap, width: number, height: number) {
+  const scale = Math.min(width / bmp.width, height / bmp.height);
+  return { w: bmp.width * scale, h: bmp.height * scale, scale };
+}
+
+/** The whole photo glides once from one edge of the leftover axis to the
+ *  other over the segment's duration — no cropping, nothing duplicated. */
+function drawTravel(
+  ctx: OffscreenCanvasRenderingContext2D,
+  bmp: ImageBitmap,
+  width: number,
+  height: number,
+  axis: 'x' | 'y',
+  p: number,
+  reverse: boolean,
+) {
+  const { w, h } = containSize(bmp, width, height);
+  const e = ease(reverse ? 1 - p : p);
+  if (axis === 'x') {
+    const inset = width * 0.03;
+    const x = inset + (width - w - inset * 2) * e;
+    ctx.drawImage(bmp, x, (height - h) / 2, w, h);
+  } else {
+    const inset = height * 0.03;
+    const y = inset + (height - h - inset * 2) * e;
+    ctx.drawImage(bmp, (width - w) / 2, y, w, h);
+  }
+}
+
+/** The same whole photo pops in twice, anchored at the two ends of the
+ *  leftover axis, staggered — fills the frame with rhythm instead of motion. */
+function drawRepeat(
+  ctx: OffscreenCanvasRenderingContext2D,
+  bmp: ImageBitmap,
+  width: number,
+  height: number,
+  axis: 'x' | 'y',
+  p: number,
+) {
+  const { w, h } = containSize(bmp, width, height);
+  const popIn = (amt: number) => Math.max(0, Math.min(1, amt));
+  const popA = ease(popIn(p / 0.18));
+  const popB = ease(popIn((p - 0.3) / 0.18));
+
+  const drawCopy = (amt: number, atEnd: boolean) => {
+    if (amt <= 0) return;
+    let x: number;
+    let y: number;
+    if (axis === 'x') {
+      const inset = width * 0.03;
+      x = atEnd ? width - w - inset : inset;
+      y = (height - h) / 2;
+    } else {
+      const inset = height * 0.03;
+      x = (width - w) / 2;
+      y = atEnd ? height - h - inset : inset;
+    }
+    const s = 0.88 + 0.12 * amt;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    ctx.save();
+    ctx.globalAlpha *= amt;
+    ctx.translate(cx, cy);
+    ctx.scale(s, s);
+    ctx.translate(-cx, -cy);
+    ctx.drawImage(bmp, x, y, w, h);
+    ctx.restore();
+  };
+  drawCopy(popA, false);
+  drawCopy(popB, true);
+}
+
+function drawTitleCard(
+  ctx: OffscreenCanvasRenderingContext2D,
+  width: number,
+  height: number,
+  seg: { text: string; sub?: string },
+) {
   // Modernist poster card: solid navy field, flush-start white title under a
   // short underline bar, uppercase sub-line — mirrors flush-start for Hebrew.
+  // Margins/font sizes are tuned to the 1080 short side, so they read the
+  // same in square and tall; wide just gives the text more room to breathe.
   ctx.fillStyle = '#1f3d5c';
-  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.fillRect(0, 0, width, height);
 
   const isRtl = /[֐-׿]/.test(seg.text);
   const margin = 96;
-  const x = isRtl ? SIZE - margin : margin;
-  const maxWidth = SIZE - margin * 2;
+  const x = isRtl ? width - margin : margin;
+  const maxWidth = width - margin * 2;
   ctx.textAlign = isRtl ? 'right' : 'left';
   ctx.textBaseline = 'middle';
 
   const barW = 64;
-  const barY = SIZE / 2 - (seg.sub ? 86 : 66);
+  const barY = height / 2 - (seg.sub ? 86 : 66);
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(isRtl ? x - barW : x, barY, barW, 5);
 
   ctx.fillStyle = '#ffffff';
   // Canvas applies proper bidi shaping natively, so Hebrew titles just work.
   ctx.font = '800 62px Archivo, system-ui, sans-serif';
-  ctx.fillText(seg.text, x, SIZE / 2 - (seg.sub ? 20 : 0), maxWidth);
+  ctx.fillText(seg.text, x, height / 2 - (seg.sub ? 20 : 0), maxWidth);
   if (seg.sub) {
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     ctx.font = '700 26px Archivo, system-ui, sans-serif';
-    ctx.fillText(seg.sub.toUpperCase(), x, SIZE / 2 + 46, maxWidth);
+    ctx.fillText(seg.sub.toUpperCase(), x, height / 2 + 46, maxWidth);
   }
 }

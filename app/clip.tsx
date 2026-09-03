@@ -6,7 +6,7 @@ import { encodeSoundtrack, type EncodedSound } from '@/lib/engine/audio';
 import { detectBeats, loopBeats, syncPlanToBeats } from '@/lib/engine/beats';
 import { clipSeconds, clipSecondsExact, planClip } from '@/lib/engine/clip';
 import { getDB } from '@/lib/engine/db';
-import type { ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
+import type { ClipAspect, ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
 import { Thumb } from './thumb';
 
@@ -83,6 +83,12 @@ const THEME_TRACK: Record<string, MusicKey> = {
   Art: 'citylights',
 };
 
+const ASPECTS: { value: ClipAspect; labelKey: 'aspectSquare' | 'aspectWide' | 'aspectTall' }[] = [
+  { value: 'square', labelKey: 'aspectSquare' },
+  { value: 'wide', labelKey: 'aspectWide' },
+  { value: 'tall', labelKey: 'aspectTall' },
+];
+
 const TRANSITIONS: { value: ClipTransition; label: string }[] = [
   { value: 'fade', label: 'Fade' },
   { value: 'slide', label: 'Slide' },
@@ -108,6 +114,15 @@ interface ClipProps {
 export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVideo, progress, onClose }: ClipProps) {
   const { lang, t } = useI18n();
   const [length, setLength] = useState<(typeof LENGTHS)[number]['label']>('Medium');
+  const [aspect, setAspect] = useState<ClipAspect>('square');
+  useEffect(() => {
+    const stored = localStorage.getItem('picbook-clip-aspect') as ClipAspect | null;
+    if (stored && ASPECTS.some((a) => a.value === stored)) setAspect(stored);
+  }, []);
+  const pickAspect = useCallback((a: ClipAspect) => {
+    setAspect(a);
+    localStorage.setItem('picbook-clip-aspect', a);
+  }, []);
   const [transition, setTransition] = useState<ClipTransition>('mix');
   useEffect(() => {
     const stored = localStorage.getItem('picbook-clip-transition') as ClipTransition | null;
@@ -302,8 +317,8 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
 
   const plan = useMemo(() => {
     const target = LENGTHS.find((l) => l.label === length)?.photos ?? 40;
-    return { ...planClip(keepers, Math.min(target, keepers.length), places, pinnedIds, lang, mapsOn), transition };
-  }, [keepers, length, places, pinnedIds, transition, lang, mapsOn]);
+    return { ...planClip(keepers, Math.min(target, keepers.length), places, pinnedIds, lang, mapsOn), transition, aspect };
+  }, [keepers, length, places, pinnedIds, transition, lang, mapsOn, aspect]);
   const seconds = useMemo(() => clipSeconds(plan), [plan]);
   const photoIds = useMemo(
     () => plan.segments.filter((s) => s.kind === 'photo').map((s) => (s.kind === 'photo' ? s.id : '')),
@@ -435,6 +450,22 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                 {l.label === 'Short' ? t('lenShort') : l.label === 'Medium' ? t('lenMedium') : t('lenLong')}
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">{t('frameShape')}</span>
+            <div className="flex border-2 border-ink text-xs">
+              {ASPECTS.map((a, i) => (
+                <button
+                  key={a.value}
+                  onClick={() => pickAspect(a.value)}
+                  className={`px-3 py-1.5 font-bold ${i > 0 ? 'border-s-2 border-ink' : ''} ${
+                    aspect === a.value ? 'bg-ink text-ground' : 'text-muted'
+                  }`}
+                >
+                  {t(a.labelKey)}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex items-center gap-1.5 overflow-x-auto">
             <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">{t('transition')}</span>
