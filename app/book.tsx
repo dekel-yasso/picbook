@@ -5,7 +5,6 @@ import { X } from 'lucide-react';
 import { applyBookOverrides, planBook } from '@/lib/engine/book';
 import { takenTime } from '@/lib/engine/cluster';
 import { getDB } from '@/lib/engine/db';
-import { debugLog } from '@/lib/engine/debug-log';
 import { exportPagesAsZip } from '@/lib/engine/export-pages';
 import type { BookPlan, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
@@ -138,13 +137,8 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
       }
     }
     try {
-      debugLog('generate(): awaiting renderBook()');
       const bytes = await renderBook(titled, files);
-      debugLog(`generate(): renderBook() resolved, ${(bytes.byteLength / 1e6).toFixed(1)}MB — constructing File`);
-      const file = new File([bytes], 'picbook.pdf', { type: 'application/pdf' });
-      debugLog('generate(): File constructed — calling setPdf()');
-      setPdf(file);
-      debugLog('generate(): setPdf() returned');
+      setPdf(new File([bytes], 'picbook.pdf', { type: 'application/pdf' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

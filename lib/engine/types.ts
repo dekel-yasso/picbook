@@ -148,10 +148,7 @@ export type EngineEvent =
   | { type: 'cover-done'; bytes: ArrayBuffer }
   | { type: 'clip-progress'; done: number; total: number }
   | { type: 'clip-done'; bytes: ArrayBuffer }
-  | { type: 'engine-error'; message: string }
-  /** Temporary diagnostic checkpoint — persisted to localStorage on the main
-   *  thread so a crash (e.g. mobile OOM) doesn't lose it with the tab. */
-  | { type: 'debug-log'; message: string };
+  | { type: 'engine-error'; message: string };
 
 /**
  * Cache key for a photo across sessions. Name+size+mtime is enough to make
