@@ -39,10 +39,10 @@ export function useEngine() {
   // Bumped whenever the worker stores new keeper renditions; consumers re-read the store.
   const [renditionsVersion, setRenditionsVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const bookResolver = useRef<{ resolve: (b: Uint8Array) => void; reject: (e: Error) => void } | null>(null);
-  const coverResolver = useRef<{ resolve: (b: Uint8Array) => void; reject: (e: Error) => void } | null>(null);
+  const bookResolver = useRef<{ resolve: (b: Uint8Array<ArrayBuffer>) => void; reject: (e: Error) => void } | null>(null);
+  const coverResolver = useRef<{ resolve: (b: Uint8Array<ArrayBuffer>) => void; reject: (e: Error) => void } | null>(null);
   const [clipProgress, setClipProgress] = useState<AnalyzeProgress>({ done: 0, total: 0, running: false });
-  const clipResolver = useRef<{ resolve: (b: Uint8Array) => void; reject: (e: Error) => void } | null>(null);
+  const clipResolver = useRef<{ resolve: (b: Uint8Array<ArrayBuffer>) => void; reject: (e: Error) => void } | null>(null);
 
   // Analyzed metas are buffered and flushed on a timer: one state update per
   // ~250ms instead of one per photo, which matters at 2,000 photos.
@@ -225,7 +225,7 @@ export function useEngine() {
   }, []);
 
   const renderBook = useCallback((plan: BookPlan, files: Map<string, File>) => {
-    return new Promise<Uint8Array>((resolve, reject) => {
+    return new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) => {
       const worker = workerRef.current;
       if (!worker) {
         reject(new Error('engine not ready'));
@@ -238,7 +238,7 @@ export function useEngine() {
   }, []);
 
   const renderCover = useCallback((plan: BookPlan, files: Map<string, File>, title: string, cover: import('./pdf').CoverType = 'softcover') => {
-    return new Promise<Uint8Array>((resolve, reject) => {
+    return new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) => {
       const worker = workerRef.current;
       if (!worker) {
         reject(new Error('engine not ready'));
@@ -251,7 +251,7 @@ export function useEngine() {
 
   const renderClipVideo = useCallback(
     (plan: ClipPlan, files: Map<string, File>, sound?: import('./audio').EncodedSound) => {
-      return new Promise<Uint8Array>((resolve, reject) => {
+      return new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) => {
         const worker = workerRef.current;
         if (!worker) {
           reject(new Error('engine not ready'));

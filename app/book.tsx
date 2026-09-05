@@ -24,8 +24,8 @@ interface BookProps {
   pinnedIds: Set<string>;
   places: Map<string, string>;
   getFile: (id: string) => File | undefined;
-  renderBook: (plan: BookPlan, files: Map<string, File>) => Promise<Uint8Array>;
-  renderCover: (plan: BookPlan, files: Map<string, File>, title: string, cover?: 'softcover' | 'imagewrap') => Promise<Uint8Array>;
+  renderBook: (plan: BookPlan, files: Map<string, File>) => Promise<Uint8Array<ArrayBuffer>>;
+  renderCover: (plan: BookPlan, files: Map<string, File>, title: string, cover?: 'softcover' | 'imagewrap') => Promise<Uint8Array<ArrayBuffer>>;
   tripName: string;
   progress: { done: number; total: number; running: boolean };
   onClose: () => void;
@@ -138,7 +138,7 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
     }
     try {
       const bytes = await renderBook(titled, files);
-      setPdf(new File([new Uint8Array(bytes)], 'picbook.pdf', { type: 'application/pdf' }));
+      setPdf(new File([bytes], 'picbook.pdf', { type: 'application/pdf' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -156,7 +156,7 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
     }
     try {
       const bytes = await renderCover(titled, files, tripName, type);
-      setCover(new File([new Uint8Array(bytes)], `picbook-cover-${type}.pdf`, { type: 'application/pdf' }));
+      setCover(new File([bytes], `picbook-cover-${type}.pdf`, { type: 'application/pdf' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

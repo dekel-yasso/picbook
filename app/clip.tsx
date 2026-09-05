@@ -106,7 +106,7 @@ interface ClipProps {
     plan: ClipPlan,
     files: Map<string, File>,
     sound?: EncodedSound,
-  ) => Promise<Uint8Array>;
+  ) => Promise<Uint8Array<ArrayBuffer>>;
   progress: { done: number; total: number; running: boolean };
   onClose: () => void;
 }
@@ -405,7 +405,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     }
     try {
       const bytes = await renderClipVideo(renderPlan, files, sound);
-      setVideo(new File([new Uint8Array(bytes)], 'picbook-clip.mp4', { type: 'video/mp4' }));
+      setVideo(new File([bytes], 'picbook-clip.mp4', { type: 'video/mp4' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

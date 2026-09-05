@@ -24,6 +24,11 @@ export function PdfPreview({ file }: { file: File }) {
   useEffect(() => {
     let cancelled = false;
     let pdfDoc: PDFDocumentProxy | null = null;
+    // A blob URL lets pdf.js range-request pages as needed instead of us
+    // reading the whole file into a second full-size ArrayBuffer up front —
+    // for a 100+MB book that extra copy was enough to crash mobile Safari
+    // shortly after generation finished, even with per-page virtualization.
+    const objectUrl = URL.createObjectURL(file);
     (async () => {
       const pdfjs = await import('pdfjs-dist');
       // GlobalWorkerOptions is a shared singleton — another concurrent pdf.js
@@ -35,7 +40,7 @@ export function PdfPreview({ file }: { file: File }) {
           { type: 'module' },
         );
       }
-      const loaded = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+      const loaded = await pdfjs.getDocument({ url: objectUrl }).promise;
       if (cancelled) {
         loaded.cleanup();
         return;
@@ -49,6 +54,7 @@ export function PdfPreview({ file }: { file: File }) {
     return () => {
       cancelled = true;
       pdfDoc?.cleanup();
+      URL.revokeObjectURL(objectUrl);
     };
   }, [file]);
 
