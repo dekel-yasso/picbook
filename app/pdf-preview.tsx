@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { debugLog } from '@/lib/engine/debug-log';
 import { useI18n } from '@/lib/i18n';
 import { observeNear } from './thumb';
 
@@ -28,9 +29,11 @@ export function PdfPreview({ file }: { file: File }) {
     // reading the whole file into a second full-size ArrayBuffer up front —
     // for a 100+MB book that extra copy was enough to crash mobile Safari
     // shortly after generation finished, even with per-page virtualization.
+    debugLog(`PdfPreview: mounting for ${(file.size / 1e6).toFixed(1)}MB file`);
     const objectUrl = URL.createObjectURL(file);
     (async () => {
       const pdfjs = await import('pdfjs-dist');
+      debugLog('PdfPreview: pdfjs-dist imported');
       // GlobalWorkerOptions is a shared singleton — another concurrent pdf.js
       // caller (e.g. the page-image export) may already have set a port;
       // reassigning it mid-flight would hang both.
@@ -40,7 +43,9 @@ export function PdfPreview({ file }: { file: File }) {
           { type: 'module' },
         );
       }
+      debugLog('PdfPreview: calling getDocument()');
       const loaded = await pdfjs.getDocument({ url: objectUrl }).promise;
+      debugLog(`PdfPreview: getDocument() resolved, ${loaded.numPages} pages`);
       if (cancelled) {
         loaded.cleanup();
         return;
@@ -48,7 +53,8 @@ export function PdfPreview({ file }: { file: File }) {
       pdfDoc = loaded;
       setDoc(loaded);
       setNumPages(loaded.numPages);
-    })().catch(() => {
+    })().catch((e) => {
+      debugLog(`PdfPreview: load failed — ${e instanceof Error ? e.message : String(e)}`);
       if (!cancelled) setFailed(true);
     });
     return () => {
@@ -92,6 +98,7 @@ function PreviewPage({ doc, pageNum }: { doc: PDFDocumentProxy | null; pageNum: 
     let cancelled = false;
     let objectUrl: string | null = null;
     (async () => {
+      debugLog(`PreviewPage ${pageNum}: rendering`);
       const page = await doc.getPage(pageNum);
       const base = page.getViewport({ scale: 1 });
       const viewport = page.getViewport({ scale: (PAGE_WIDTH / base.width) * (devicePixelRatio || 1) });
@@ -105,7 +112,10 @@ function PreviewPage({ doc, pageNum }: { doc: PDFDocumentProxy | null; pageNum: 
       if (!blob || cancelled) return;
       objectUrl = URL.createObjectURL(blob);
       setUrl(objectUrl);
-    })();
+      debugLog(`PreviewPage ${pageNum}: rendered`);
+    })().catch((e) => {
+      debugLog(`PreviewPage ${pageNum}: render failed — ${e instanceof Error ? e.message : String(e)}`);
+    });
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);

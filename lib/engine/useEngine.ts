@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getDB } from './db';
+import { debugLog } from './debug-log';
 import {
   fingerprint,
   type BookPlan,
@@ -109,8 +110,10 @@ export function useEngine() {
       } else if (ev.type === 'book-progress') {
         setBookProgress({ done: ev.done, total: ev.total, running: true });
       } else if (ev.type === 'book-done') {
+        debugLog(`main thread received book-done, ${(ev.bytes.byteLength / 1e6).toFixed(1)}MB transferred`);
         setBookProgress((p) => ({ ...p, running: false }));
         bookResolver.current?.resolve(new Uint8Array(ev.bytes));
+        debugLog('bookResolver.resolve() returned');
         bookResolver.current = null;
       } else if (ev.type === 'cover-done') {
         coverResolver.current?.resolve(new Uint8Array(ev.bytes));
@@ -122,16 +125,7 @@ export function useEngine() {
         clipResolver.current?.resolve(new Uint8Array(ev.bytes));
         clipResolver.current = null;
       } else if (ev.type === 'debug-log') {
-        // Persisted (not just logged) since a mobile OOM crash takes any
-        // in-memory console output down with the tab — this survives it.
-        try {
-          const key = 'picbook-debug-log';
-          const line = `[${new Date().toLocaleTimeString()}] ${ev.message}\n`;
-          const prev = localStorage.getItem(key) ?? '';
-          localStorage.setItem(key, (prev + line).slice(-10000));
-        } catch {
-          // best-effort only
-        }
+        debugLog(ev.message);
       } else if (ev.type === 'engine-error') {
         setError(ev.message);
         setProgress((p) => ({ ...p, running: false }));
