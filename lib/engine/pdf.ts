@@ -72,6 +72,11 @@ export async function renderBookPdf(
   const total = plan.chapters.reduce((n, c) => n + 1 + c.pages.reduce((m, p) => m + p.photoIds.length, 0), 0);
   let done = 0;
 
+  // TEMP diagnostics for the mobile-Safari-reload investigation — persisted
+  // on the main thread since a crash takes the worker's own state with it.
+  let embeddedBytes = 0;
+  emit({ type: 'debug-log', message: `renderBookPdf start: ${plan.chapters.length} chapters, ${total} images planned` });
+
   const metas = new Map<string, PhotoMeta>();
   for (const p of await db.getAll('photos')) metas.set(p.id, p);
 
@@ -83,7 +88,15 @@ export async function renderBookPdf(
     const jpegBytes = async (b: Blob) =>
       new Uint8Array(await (await toJpegBlob(b, IMAGE_MAX, cropAspect, focus)).arrayBuffer());
     try {
-      return await doc.embedJpg(await jpegBytes(blob));
+      const bytes = await jpegBytes(blob);
+      embeddedBytes += bytes.length;
+      if (done % 25 === 0) {
+        emit({
+          type: 'debug-log',
+          message: `embedding ${done}/${total} — ~${(embeddedBytes / 1e6).toFixed(1)}MB of JPEG bytes embedded so far`,
+        });
+      }
+      return await doc.embedJpg(bytes);
     } catch {
       // Undecodable original (e.g. HEIC on Chrome): retry with the cached thumb.
       const thumb = await db.get('thumbs', id);
@@ -193,7 +206,13 @@ export async function renderBookPdf(
   // No forced page-count padding: the PDF ends where the real content ends.
   // Blurb's minimum/even-page requirement can be reintroduced as an explicit
   // print-mode option if needed later.
-  return await doc.save();
+  emit({
+    type: 'debug-log',
+    message: `all ${total} images embedded (~${(embeddedBytes / 1e6).toFixed(1)}MB), starting doc.save()`,
+  });
+  const bytes = await doc.save();
+  emit({ type: 'debug-log', message: `doc.save() complete — output ${(bytes.length / 1e6).toFixed(1)}MB` });
+  return bytes;
 }
 
 export type CoverType = 'softcover' | 'imagewrap';

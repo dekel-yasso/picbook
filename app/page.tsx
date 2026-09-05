@@ -36,6 +36,7 @@ import { ReviewOverlay, type ReviewEntry } from './review';
 import { Thumb } from './thumb';
 import { TripSwitcher, type TripSummary } from './trip-switcher';
 import { UNDO_MS, UndoToast, type PendingAction } from './undo-toast';
+import { DebugLogViewer } from './debug-log';
 import { UpdateBanner } from './update-banner';
 
 export default function Home() {
@@ -1117,6 +1118,7 @@ export default function Home() {
       )}
 
       {pending && <UndoToast pending={pending} onUndo={undoPending} />}
+      <DebugLogViewer />
     </main>
   );
 }

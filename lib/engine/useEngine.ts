@@ -121,6 +121,17 @@ export function useEngine() {
         setClipProgress((p) => ({ ...p, running: false }));
         clipResolver.current?.resolve(new Uint8Array(ev.bytes));
         clipResolver.current = null;
+      } else if (ev.type === 'debug-log') {
+        // Persisted (not just logged) since a mobile OOM crash takes any
+        // in-memory console output down with the tab — this survives it.
+        try {
+          const key = 'picbook-debug-log';
+          const line = `[${new Date().toLocaleTimeString()}] ${ev.message}\n`;
+          const prev = localStorage.getItem(key) ?? '';
+          localStorage.setItem(key, (prev + line).slice(-10000));
+        } catch {
+          // best-effort only
+        }
       } else if (ev.type === 'engine-error') {
         setError(ev.message);
         setProgress((p) => ({ ...p, running: false }));
