@@ -24,12 +24,17 @@ let pending = false;
 
 function sweep() {
   pending = false;
-  // innerHeight can read 0 in embedded webviews; fall back before giving up.
+  // innerHeight/innerWidth can read 0 in embedded webviews; fall back before giving up.
   const vh = Math.max(window.innerHeight, document.documentElement.clientHeight, 700);
+  const vw = Math.max(window.innerWidth, document.documentElement.clientWidth, 350);
   for (const [el, sub] of subs) {
     const r = el.getBoundingClientRect();
     // Zero-size rects (display:none / content-visibility-skipped) stay as-is.
-    const near = r.height > 0 && r.bottom > -MARGIN && r.top < vh + MARGIN;
+    // Checked on both axes: the photo grid scrolls vertically, but this is
+    // also reused for the horizontally-scrolling PDF preview strip, where an
+    // element off to the side is always "vertically visible" in its one row.
+    const near =
+      r.height > 0 && r.width > 0 && r.bottom > -MARGIN && r.top < vh + MARGIN && r.right > -MARGIN && r.left < vw + MARGIN;
     if (near !== sub.near) {
       sub.near = near;
       sub.cb(near);
