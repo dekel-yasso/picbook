@@ -59,6 +59,14 @@ export default function Home() {
     renderCover,
   } = useEngine();
   const { lang, t } = useI18n();
+  // The pre-trips/no-trip bucket is a real persisted Trip (see lib/engine/trips.ts)
+  // whose stored name is a fixed English literal — translate it for display
+  // instead of baking a locale into engine data.
+  const tripLabel = useCallback(
+    (trip: { id: string; name: string } | undefined): string =>
+      trip ? (trip.id === DEFAULT_TRIP_ID ? t('myPhotosTrip') : trip.name) : '',
+    [t],
+  );
   const [bookOpen, setBookOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -432,9 +440,9 @@ export default function Home() {
         }
         const first = cl[0];
         const coverId = first ? (first.photos.length > 1 ? (first.bestId ?? first.photos[0].id) : first.photos[0].id) : null;
-        return { id: tr.id, name: tr.name, dateRange, photoCount, keeperCount, reviewed, coverId };
+        return { id: tr.id, name: tripLabel(tr), dateRange, photoCount, keeperCount, reviewed, coverId };
       }),
-    [visibleTrips, photos, decisions, lang],
+    [visibleTrips, photos, decisions, lang, tripLabel],
   );
 
   const clusters = useMemo(() => clusterPhotos(tripPhotos), [tripPhotos]);
@@ -646,7 +654,7 @@ export default function Home() {
           onClick={() => setTripSwitcherOpen(true)}
           className="flex min-w-0 flex-1 items-center justify-between border-2 border-ink bg-white px-3 py-2 text-[14px] font-semibold text-ink"
         >
-          <span className="truncate">{trips.find((tr) => tr.id === activeTripId)?.name ?? ''}</span>
+          <span className="truncate">{tripLabel(trips.find((tr) => tr.id === activeTripId))}</span>
           <ChevronDown className="shrink-0 text-ink" size={16} strokeWidth={2.25} />
         </button>
         <button
@@ -1089,7 +1097,7 @@ export default function Home() {
           getFile={getFile}
           renderBook={renderBook}
           renderCover={renderCover}
-          tripName={trips.find((tr) => tr.id === activeTripId)?.name ?? 'PicBook'}
+          tripName={tripLabel(trips.find((tr) => tr.id === activeTripId)) || 'PicBook'}
           progress={bookProgress}
           onClose={() => setBookOpen(false)}
         />

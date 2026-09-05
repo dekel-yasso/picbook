@@ -292,7 +292,10 @@ export function ReviewOverlay({
           <button onClick={onClose} aria-label={t('close')} className="px-2 py-1">
             <X size={20} strokeWidth={2.25} />
           </button>
-          <span className="text-[13px] font-bold">
+          {/* dir="ltr": a bare "N / total" counter has no surrounding word to
+              anchor bidi ordering, so in an RTL context it renders reversed
+              without this. */}
+          <span dir="ltr" className="text-[13px] font-bold">
             {safeIndex + 1} / {list.length}
           </span>
           <div className="flex items-center gap-2">
@@ -372,7 +375,10 @@ export function ReviewOverlay({
             >
               <X size={18} strokeWidth={2.25} />
             </button>
-            <span className="absolute left-1/2 top-3 -translate-x-1/2 bg-ink/70 px-3 py-1.5 text-xs font-semibold text-ground">
+            <span
+              dir="ltr"
+              className="absolute left-1/2 top-3 -translate-x-1/2 bg-ink/70 px-3 py-1.5 text-xs font-semibold text-ground"
+            >
               {safeIndex + 1} / {list.length}
             </span>
             <button

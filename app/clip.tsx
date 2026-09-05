@@ -433,7 +433,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
           <X size={20} strokeWidth={2.25} />
         </button>
         <span className="text-[14px] font-extrabold">{t('tripClip')}</span>
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">~{seconds}S</span>
+        {/* dir="ltr": no adjacent word to anchor bidi ordering, so this
+            renders reversed ("S9~") in RTL without it. */}
+        <span dir="ltr" className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+          ~{seconds}S
+        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto">

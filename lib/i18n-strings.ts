@@ -187,6 +187,7 @@ export const STRINGS = {
     toastDayDeleted: '{day} deleted — {n} photos',
     toastTripDeleted: '{name} deleted',
     // trip switcher (4a)
+    myPhotosTrip: 'My photos',
     trips: 'Trips',
     tripActive: 'Active',
     tripNotReviewedYet: 'not reviewed yet',
@@ -366,6 +367,7 @@ export const STRINGS = {
     toastPhotoDeleted: 'התמונה נמחקה',
     toastDayDeleted: '{day} נמחק — {n} תמונות',
     toastTripDeleted: '{name} נמחק',
+    myPhotosTrip: 'התמונות שלי',
     trips: 'טיולים',
     tripActive: 'פעיל',
     tripNotReviewedYet: 'עוד לא נסקר',
