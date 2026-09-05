@@ -20,7 +20,7 @@ const DECODE_MAX = 1600;
 /** Output pixel dimensions per frame shape. The shorter side is always 1080,
  *  so every layout constant tuned against the old square SIZE (margins, font
  *  sizes) still reads correctly — only the long axis grows. */
-function dimsForAspect(aspect: ClipAspect = 'square'): { width: number; height: number } {
+export function dimsForAspect(aspect: ClipAspect = 'square'): { width: number; height: number } {
   switch (aspect) {
     case 'wide':
       return { width: 1920, height: 1080 };
@@ -46,7 +46,7 @@ interface FillPlan {
 // worth the fill treatment; a true portrait/landscape flip loses 55%+).
 const MISMATCH_SLACK = 0.2;
 
-function pickFillPlan(aspect: ClipAspect, bmpW: number, bmpH: number, width: number, height: number, seedKey: string): FillPlan {
+export function pickFillPlan(aspect: ClipAspect, bmpW: number, bmpH: number, width: number, height: number, seedKey: string): FillPlan {
   // Square keeps its original, already-shipped cover-crop behavior — this
   // treatment only kicks in for the new wide/tall frame shapes.
   if (aspect === 'square') return { mode: 'cover' };
