@@ -55,7 +55,10 @@ function hook() {
   }, IDLE_SWEEP_MS);
 }
 
-function observeNear(el: Element, cb: (near: boolean) => void): () => void {
+/** Calls `cb(near)` whenever `el` crosses in/out of the viewport (± MARGIN),
+ *  tracked via the same scroll/resize sweep the photo grid uses — reused by
+ *  the PDF preview to virtualize its page strip too. */
+export function observeNear(el: Element, cb: (near: boolean) => void): () => void {
   hook();
   const sub: Sub = { cb, near: false };
   subs.set(el, sub);
