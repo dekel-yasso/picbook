@@ -6,6 +6,7 @@ import { isKeeper, type Cluster } from '@/lib/engine/cluster';
 import { getDB } from '@/lib/engine/db';
 import type { Decision, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
+import { LangToggle } from './lang-toggle';
 import { useThumbUrl } from './thumb';
 
 const SWIPE_PX = 50;
@@ -315,6 +316,7 @@ export function ReviewOverlay({
             >
               <Trash2 size={17} strokeWidth={2.25} />
             </button>
+            <LangToggle />
           </div>
         </div>
       )}

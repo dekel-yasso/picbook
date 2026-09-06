@@ -31,6 +31,7 @@ import { AccountOverlay } from './account';
 import { BookOverlay } from './book';
 import { ClipOverlay } from './clip';
 import { BurstReviewOverlay } from './burst-review';
+import { LangToggle } from './lang-toggle';
 import { Onboarding } from './onboarding';
 import { ReviewOverlay, type ReviewEntry } from './review';
 import { Thumb } from './thumb';
@@ -664,6 +665,7 @@ export default function Home() {
           <Cloud size={16} strokeWidth={2.25} />
           {t('syncBtn')}
         </button>
+        <LangToggle className="h-[38px]" />
       </div>
 
       {receiving && !progress.running && (

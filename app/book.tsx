@@ -8,6 +8,7 @@ import { getDB } from '@/lib/engine/db';
 import { exportPagesAsZip } from '@/lib/engine/export-pages';
 import type { BookPlan, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
+import { LangToggle } from './lang-toggle';
 import { PdfPreview } from './pdf-preview';
 import { Thumb } from './thumb';
 
@@ -202,9 +203,12 @@ export function BookOverlay({ tripId, keepers, pinnedIds, places, getFile, rende
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex flex-col bg-ground text-ink">
       <div className="flex items-center justify-between border-b-2 border-ink px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button onClick={onClose} aria-label={t('close')} className="px-2 py-1">
-          <X size={20} strokeWidth={2.25} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onClose} aria-label={t('close')} className="px-2 py-1">
+            <X size={20} strokeWidth={2.25} />
+          </button>
+          <LangToggle />
+        </div>
         <span className="text-[14px] font-extrabold">{t('yourBook')}</span>
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{t('pagesCount', { n: pageCount })}</span>
       </div>
