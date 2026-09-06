@@ -629,6 +629,7 @@ export default function Home() {
       <UpdateBanner />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[21px] font-extrabold tracking-[-0.02em] text-ink">PicBook</h1>
+        <LangToggle />
         <div className="flex gap-2">
           <button
             onClick={addPhotos}
@@ -665,7 +666,6 @@ export default function Home() {
           <Cloud size={16} strokeWidth={2.25} />
           {t('syncBtn')}
         </button>
-        <LangToggle className="h-[38px]" />
       </div>
 
       {receiving && !progress.running && (
