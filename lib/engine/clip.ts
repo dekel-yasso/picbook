@@ -158,8 +158,14 @@ export async function renderClip(
   if (typeof VideoEncoder === 'undefined') {
     throw new Error('Video export needs a newer browser (WebCodecs is unavailable here)');
   }
+  // WebCodecs errors (especially on iOS Safari's hardware encoders) tend to
+  // arrive as a bare, unhelpful native message — tag it with the stage that
+  // was running so a report says where it actually failed, not just what.
+  let stage = 'setup';
+  try {
   const { width, height } = dimsForAspect(plan.aspect);
   const soundtrack = sound && sound.chunks.length > 0 ? sound : null;
+  stage = 'pickCodec';
   const codec = await pickCodec(width, height);
   const db = await getDB();
   // Land silhouettes for map segments (cached after first fetch; null offline).
@@ -193,12 +199,18 @@ export async function renderClip(
       : {}),
     fastStart: 'in-memory',
   });
+  // The error callback fires asynchronously from the browser's own encoder
+  // machinery, outside our call stack — throwing directly from it here would
+  // never reach this function's try/catch. Stash it and check synchronously
+  // instead, same pattern as encodeSoundtrack's AudioEncoder in audio.ts.
+  let encodeFailed: unknown = null;
   const encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
     error: (e) => {
-      throw e;
+      encodeFailed = e;
     },
   });
+  stage = 'VideoEncoder.configure';
   encoder.configure({ codec, width, height, bitrate: BITRATE, framerate: FPS });
 
   const canvas = new OffscreenCanvas(width, height);
@@ -282,6 +294,8 @@ export async function renderClip(
 
   let active = 0;
   for (let f = 0; f < totalFrames; f++) {
+    stage = `frame ${f}/${totalFrames}`;
+    if (encodeFailed) throw encodeFailed;
     const time = f / FPS;
     while (active + 1 < timeline.length && time >= timeline[active].start + timeline[active].duration) {
       active++;
@@ -354,12 +368,15 @@ export async function renderClip(
     }
   }
 
+  stage = 'encoder.flush';
   await encoder.flush();
+  if (encodeFailed) throw encodeFailed;
   encoder.close();
   for (const bmp of bitmaps.values()) bmp?.close();
 
   // Soundtrack: chunks were AAC-encoded on the main thread; just mux them.
   if (soundtrack) {
+    stage = 'mux audio chunks';
     const meta: EncodedAudioChunkMetadata = {
       decoderConfig: {
         codec: 'mp4a.40.2',
@@ -378,8 +395,13 @@ export async function renderClip(
     }
   }
 
+  stage = 'muxer.finalize';
   muxer.finalize();
   return new Uint8Array(muxer.target.buffer);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`[${stage}] ${msg}`);
+  }
 }
 
 async function pickCodec(width: number, height: number): Promise<string> {
