@@ -70,6 +70,7 @@ describe('dimsForAspect', () => {
   it('keeps the short side at 1080 for wide and tall', () => {
     expect(dimsForAspect('wide')).toEqual({ width: 1920, height: 1080 });
     expect(dimsForAspect('tall')).toEqual({ width: 1080, height: 1920 });
+    expect(dimsForAspect('portrait')).toEqual({ width: 1080, height: 1440 });
   });
 });
 

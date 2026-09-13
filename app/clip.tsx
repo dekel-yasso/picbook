@@ -85,10 +85,11 @@ const THEME_TRACK: Record<string, MusicKey> = {
   Art: 'citylights',
 };
 
-const ASPECTS: { value: ClipAspect; labelKey: 'aspectSquare' | 'aspectWide' | 'aspectTall' }[] = [
+const ASPECTS: { value: ClipAspect; labelKey: 'aspectSquare' | 'aspectWide' | 'aspectTall' | 'aspectPortrait' }[] = [
   { value: 'square', labelKey: 'aspectSquare' },
   { value: 'wide', labelKey: 'aspectWide' },
   { value: 'tall', labelKey: 'aspectTall' },
+  { value: 'portrait', labelKey: 'aspectPortrait' },
 ];
 
 const TRANSITIONS: { value: ClipTransition; label: string }[] = [
@@ -125,15 +126,38 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     setAspect(a);
     localStorage.setItem('picbook-clip-aspect', a);
   }, []);
-  const [transition, setTransition] = useState<ClipTransition>('mix');
+  // Any subset of the four styles, cycled in order; "Mix" = all four.
+  type Style = Exclude<ClipTransition, 'mix'>;
+  const STYLES: Style[] = ['fade', 'slide', 'zoom', 'wipe'];
+  const [transitions, setTransitions] = useState<Style[]>(STYLES);
   useEffect(() => {
-    const stored = localStorage.getItem('picbook-clip-transition') as ClipTransition | null;
-    if (stored && TRANSITIONS.some((t) => t.value === stored)) setTransition(stored);
+    try {
+      const stored = JSON.parse(localStorage.getItem('picbook-clip-transitions') ?? 'null');
+      if (Array.isArray(stored)) {
+        const valid = stored.filter((s): s is Style => STYLES.includes(s));
+        if (valid.length) setTransitions(valid);
+      }
+    } catch {
+      // ignore a corrupt value; defaults stand
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once
   }, []);
-  const pickTransition = useCallback((t: ClipTransition) => {
-    setTransition(t);
-    localStorage.setItem('picbook-clip-transition', t);
+  const toggleTransition = useCallback((s: Style) => {
+    setTransitions((cur) => {
+      // Keep STYLES order so the cycle is predictable; never allow an empty set.
+      const next = cur.includes(s) ? cur.filter((x) => x !== s) : STYLES.filter((x) => x === s || cur.includes(x));
+      const out = next.length ? next : cur;
+      localStorage.setItem('picbook-clip-transitions', JSON.stringify(out));
+      return out;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- STYLES is constant
   }, []);
+  const pickMix = useCallback(() => {
+    setTransitions(STYLES);
+    localStorage.setItem('picbook-clip-transitions', JSON.stringify(STYLES));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- STYLES is constant
+  }, []);
+  const isMix = transitions.length === STYLES.length;
   const [music, setMusic] = useState<MusicKey>('whereverwego');
   // Suggest a track that fits the trip's dominant theme — beach trips open
   // with the beach song. An explicit user choice (stored) always wins.
@@ -338,13 +362,20 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     [videoUrl],
   );
 
-  const plan = useMemo(() => {
+  const plan = useMemo<ClipPlan>(() => {
     const target = LENGTHS.find((l) => l.label === length)?.photos ?? 40;
     const base = photosOnly
       ? planPhotosOnly(keepers)
       : planClip(keepers, Math.min(target, keepers.length), places, pinnedIds, lang, mapsOn);
-    return { ...base, transition, aspect, photoSeconds: photoS, fadeSeconds: fadeS };
-  }, [keepers, length, places, pinnedIds, transition, lang, mapsOn, aspect, photosOnly, photoS, fadeS]);
+    return {
+      ...base,
+      transition: transitions.length === 1 ? transitions[0] : 'mix',
+      transitions,
+      aspect,
+      photoSeconds: photoS,
+      fadeSeconds: fadeS,
+    };
+  }, [keepers, length, places, pinnedIds, transitions, lang, mapsOn, aspect, photosOnly, photoS, fadeS]);
   const seconds = useMemo(() => clipSeconds(plan), [plan]);
   const photoIds = useMemo(
     () => plan.segments.filter((s) => s.kind === 'photo').map((s) => (s.kind === 'photo' ? s.id : '')),
@@ -511,19 +542,21 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
           </div>
           <div className="flex items-center gap-1.5 overflow-x-auto">
             <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">{t('transition')}</span>
-            {TRANSITIONS.map((tr) => (
-              <button
-                key={tr.value}
-                onClick={() => pickTransition(tr.value)}
-                className={`shrink-0 text-[11px] font-semibold ${
-                  transition === tr.value
-                    ? 'bg-accent px-2.5 py-1 text-white'
-                    : 'border border-line px-[9px] py-[3px] text-muted'
-                }`}
-              >
-                {tr.label === 'Fade' ? t('trFade') : tr.label === 'Slide' ? t('trSlide') : tr.label === 'Zoom' ? t('trZoom') : tr.label === 'Wipe' ? t('trWipe') : t('trMix')}
-              </button>
-            ))}
+            {TRANSITIONS.map((tr) => {
+              const on = tr.value === 'mix' ? isMix : !isMix && transitions.includes(tr.value);
+              return (
+                <button
+                  key={tr.value}
+                  aria-pressed={on}
+                  onClick={() => (tr.value === 'mix' ? pickMix() : toggleTransition(tr.value))}
+                  className={`shrink-0 text-[11px] font-semibold ${
+                    on ? 'bg-accent px-2.5 py-1 text-white' : 'border border-line px-[9px] py-[3px] text-muted'
+                  }`}
+                >
+                  {tr.label === 'Fade' ? t('trFade') : tr.label === 'Slide' ? t('trSlide') : tr.label === 'Zoom' ? t('trZoom') : tr.label === 'Wipe' ? t('trWipe') : t('trMix')}
+                </button>
+              );
+            })}
             {!photosOnly && (
               <button
                 onClick={toggleMaps}

@@ -107,12 +107,14 @@ export type ClipSegment =
 export type ClipTransition = 'fade' | 'slide' | 'zoom' | 'wipe' | 'mix';
 
 /** Output frame shape. Default 'square' keeps today's 1080×1080 behavior. */
-export type ClipAspect = 'square' | 'wide' | 'tall';
+export type ClipAspect = 'square' | 'wide' | 'tall' | 'portrait';
 
 export interface ClipPlan {
   segments: ClipSegment[];
   photoCount: number;
   transition?: ClipTransition;
+  /** User-picked subset to cycle through, in order; takes precedence over `transition`. */
+  transitions?: Exclude<ClipTransition, 'mix'>[];
   aspect?: ClipAspect;
   /** Seconds each photo is on screen; default DEFAULT_PHOTO_S (see clip-timing.ts). */
   photoSeconds?: number;

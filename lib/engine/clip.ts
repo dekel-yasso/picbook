@@ -24,6 +24,8 @@ export function dimsForAspect(aspect: ClipAspect = 'square'): { width: number; h
       return { width: 1920, height: 1080 };
     case 'tall':
       return { width: 1080, height: 1920 };
+    case 'portrait':
+      return { width: 1080, height: 1440 };
     default:
       return { width: 1080, height: 1080 };
   }
@@ -302,8 +304,14 @@ export async function renderClip(
     ctx.globalAlpha = 1;
   };
 
-  const style = plan.transition ?? 'mix';
   const MIX_ORDER: Exclude<ClipTransition, 'mix'>[] = ['fade', 'slide', 'zoom', 'wipe'];
+  const style = plan.transition ?? 'mix';
+  // Cycle through the user's chosen subset (or all four for "mix", or one).
+  const kinds: Exclude<ClipTransition, 'mix'>[] = plan.transitions?.length
+    ? plan.transitions
+    : style === 'mix'
+      ? MIX_ORDER
+      : [style];
 
   let active = 0;
   for (let f = 0; f < totalFrames; f++) {
@@ -323,7 +331,7 @@ export async function renderClip(
       await drawSegment(active, time - cur.start, 1);
     } else {
       const p = Math.min(1, (time - next.start) / fadeS);
-      const kind = style === 'mix' ? MIX_ORDER[active % MIX_ORDER.length] : style;
+      const kind = kinds[active % kinds.length];
       const e = ease(p);
       const tCur = time - cur.start;
       const tNext = time - next.start;
