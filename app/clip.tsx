@@ -184,7 +184,6 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       if (!file) return;
       const db = await getDB();
       await db.put('media', { blob: file, name: file.name }, 'clip-soundtrack');
-      audioCache.current.delete('custom');
       localStorage.setItem('picbook-clip-custom-name', file.name);
       setCustomName(file.name);
       pickMusic('custom');
@@ -226,7 +225,6 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
         const name = `${hit.artist} — ${hit.name}`;
         const credit = `Music: ${hit.artist} — “${hit.name}” · Jamendo (${hit.license || 'CC'})`;
         await (await getDB()).put('media', { blob, name, credit }, 'clip-soundtrack');
-        audioCache.current.delete('custom');
         localStorage.setItem('picbook-clip-custom-name', name);
         setCustomName(name);
         pickMusic('custom');
@@ -238,9 +236,6 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     },
     [pickMusic],
   );
-
-  // Decoded PCM per track, cached for re-renders within this session.
-  const audioCache = useRef<Map<string, { channels: Float32Array[]; sampleRate: number }>>(new Map());
 
   // In-picker listening: one shared <audio>, streaming straight from the URL.
   const stopPreviewRef = useRef<(() => void) | null>(null);
@@ -380,48 +375,44 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     }
     if (music !== 'none') {
       const diag: string[] = [`♪ ${music === 'custom' ? (customName ?? 'custom') : music}`];
-      try {
-        let decoded = audioCache.current.get(music);
-        if (!decoded) {
-          let buf: ArrayBuffer;
-          if (music === 'custom') {
-            const stored = await (await getDB()).get('media', 'clip-soundtrack');
-            if (!stored) throw new Error('no custom track');
-            buf = await stored.blob.arrayBuffer();
-          } else {
-            buf = await fetch(`/music/${music}.mp3`).then((r) => {
-              if (!r.ok) throw new Error(`fetch ${r.status}`);
-              return r.arrayBuffer();
-            });
-          }
-          diag.push(`fetch ${(buf.byteLength / 1e6).toFixed(1)}MB`);
-          const actx = new AudioContext();
-          const ab = await actx.decodeAudioData(buf);
-          await actx.close();
-          const keep = Math.min(ab.length, Math.round(CUSTOM_CACHE_SECONDS * ab.sampleRate));
-          decoded = {
-            channels: Array.from({ length: ab.numberOfChannels }, (_, i) =>
-              ab.getChannelData(i).slice(0, keep),
-            ),
-            sampleRate: ab.sampleRate,
-          };
-          audioCache.current.set(music, decoded);
+      // Decode → beat-sync → AAC-encode inside one call so the decoded PCM
+      // (~60MB of Float32 for a 2.5min track) is unreachable — and collectable —
+      // before the video encoder starts. iOS runs the page and the worker in
+      // one process with a tight memory ceiling; holding that PCM through a
+      // long render is what made the hardware encoder fail mid-clip.
+      const prepareSound = async (): Promise<EncodedSound | undefined> => {
+        let buf: ArrayBuffer;
+        if (music === 'custom') {
+          const stored = await (await getDB()).get('media', 'clip-soundtrack');
+          if (!stored) throw new Error('no custom track');
+          buf = await stored.blob.arrayBuffer();
         } else {
-          diag.push('cached');
+          buf = await fetch(`/music/${music}.mp3`).then((r) => {
+            if (!r.ok) throw new Error(`fetch ${r.status}`);
+            return r.arrayBuffer();
+          });
         }
-        diag.push(`decoded ${Math.round(decoded.channels[0].length / decoded.sampleRate)}s@${decoded.sampleRate}`);
+        diag.push(`fetch ${(buf.byteLength / 1e6).toFixed(1)}MB`);
+        const actx = new AudioContext();
+        const ab = await actx.decodeAudioData(buf);
+        await actx.close();
+        const keep = Math.min(ab.length, Math.round(CUSTOM_CACHE_SECONDS * ab.sampleRate));
+        const channels = Array.from({ length: ab.numberOfChannels }, (_, i) => ab.getChannelData(i).slice(0, keep));
+        const sampleRate = ab.sampleRate;
+        diag.push(`decoded ${Math.round(channels[0].length / sampleRate)}s@${sampleRate}`);
         if (beatSync) {
-          const trackSeconds = decoded.channels[0].length / decoded.sampleRate;
-          const oneTrack = detectBeats(decoded.channels, decoded.sampleRate);
+          const trackSeconds = channels[0].length / sampleRate;
+          const oneTrack = detectBeats(channels, sampleRate);
           const beats = loopBeats(oneTrack, trackSeconds, clipSecondsExact(renderPlan) + 5);
           const synced = syncPlanToBeats(renderPlan, beats);
           renderPlan = synced.plan;
           diag.push(`beats ${oneTrack.length} · cuts ${synced.snapped}/${synced.cuts} on beat`);
         }
         // AAC-encode here on the page — WebKit lacks AudioEncoder in workers.
-        sound =
-          (await encodeSoundtrack(decoded.channels, decoded.sampleRate, clipSecondsExact(renderPlan))) ??
-          undefined;
+        return (await encodeSoundtrack(channels, sampleRate, clipSecondsExact(renderPlan))) ?? undefined;
+      };
+      try {
+        sound = await prepareSound();
         diag.push(
           sound
             ? `encoded ${sound.chunks.length} chunks, desc ${sound.description?.byteLength ?? 0}B`

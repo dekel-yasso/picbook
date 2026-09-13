@@ -372,9 +372,17 @@ export async function renderClip(
     encoder.encode(frame, { keyFrame: f % (FPS * 2) === 0 });
     frame.close();
 
-    // Backpressure: don't let encode queue balloon memory.
-    while (encoder.encodeQueueSize > 8) {
+    // Backpressure. Each queued frame is a full-resolution pixel buffer, and
+    // iOS Safari's hardware encoder fails with "Buffer has no frame" once it
+    // can't allocate another — so keep the queue shallow and drain it fully
+    // at every keyframe boundary (2s) instead of letting 8 frames pile up.
+    while (encoder.encodeQueueSize > 2) {
       await new Promise((r) => setTimeout(r, 5));
+    }
+    if (f % (FPS * 2) === FPS * 2 - 1) {
+      stage = `frame ${f}/${totalFrames} (drain)`;
+      await encoder.flush();
+      if (encodeFailed) throw encodeFailed;
     }
     if (f % 15 === 0 || f === totalFrames - 1) {
       emit({ type: 'clip-progress', done: f + 1, total: totalFrames });
