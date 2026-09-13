@@ -3,6 +3,7 @@
 // energy-rise envelope — no tempo grid, so it survives classical rubato and
 // works on any genre. Runs on the page right after decodeAudioData.
 
+import { clipTiming, TITLE_S } from './clip-timing';
 import type { ClipPlan } from './types';
 
 const HOP_S = 0.023; // ~1024 samples at 44.1kHz
@@ -11,12 +12,9 @@ const MIN_GAP_S = 0.25;
  *  feels better than an early cut. */
 const SNAP_BACK_S = 0.45;
 const SNAP_FWD_S = 0.6;
-const PHOTO_MIN_S = 1.0;
-const PHOTO_MAX_S = 2.8;
-// Must mirror clip.ts. Duplicated to keep this module free of render imports.
-const PHOTO_S = 1.6;
-const TITLE_S = 1.4;
-const FADE_S = 0.4;
+// A snapped shot may shrink/grow this much relative to the chosen photo time.
+const PHOTO_MIN_RATIO = 0.6;
+const PHOTO_MAX_RATIO = 1.75;
 
 /** Onset times (seconds) of one pass of the track. */
 export function detectBeats(channels: Float32Array[], sampleRate: number): number[] {
@@ -95,16 +93,17 @@ export function syncPlanToBeats(
   beats: number[],
 ): { plan: ClipPlan; snapped: number; cuts: number } {
   if (!beats.length) return { plan, snapped: 0, cuts: 0 };
+  const { photoS, fadeS } = clipTiming(plan);
   let clock = 0;
   let snapped = 0;
   let cuts = 0;
   const segments = plan.segments.map((seg, i) => {
-    const base = seg.kind === 'title' ? TITLE_S : seg.kind === 'map' ? seg.duration : PHOTO_S;
+    const base = seg.kind === 'title' ? TITLE_S : seg.kind === 'map' ? seg.duration : photoS;
     let duration = base;
     // Only sync photo→anything boundaries, and leave the final fade-out alone.
     if (seg.kind === 'photo' && i < plan.segments.length - 1) {
       cuts++;
-      const cut = clock + base - FADE_S / 2;
+      const cut = clock + base - fadeS / 2;
       let best: number | null = null;
       for (const b of beats) {
         if (b < cut - SNAP_BACK_S) continue;
@@ -113,13 +112,13 @@ export function syncPlanToBeats(
       }
       if (best !== null) {
         const d = base + (best - cut);
-        if (d >= PHOTO_MIN_S && d <= PHOTO_MAX_S) {
+        if (d >= photoS * PHOTO_MIN_RATIO && d <= photoS * PHOTO_MAX_RATIO) {
           duration = d;
           snapped++;
         }
       }
     }
-    clock += duration - FADE_S;
+    clock += duration - fadeS;
     return seg.kind === 'photo' ? { ...seg, s: duration } : seg;
   });
   return { plan: { ...plan, segments }, snapped, cuts };

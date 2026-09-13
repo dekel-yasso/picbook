@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Pause, Play, Search, X } from 'lucide-react';
 import { encodeSoundtrack, type EncodedSound } from '@/lib/engine/audio';
 import { detectBeats, loopBeats, syncPlanToBeats } from '@/lib/engine/beats';
-import { clipSeconds, clipSecondsExact, planClip } from '@/lib/engine/clip';
+import { clipSeconds, clipSecondsExact, planClip, planPhotosOnly } from '@/lib/engine/clip';
+import { DEFAULT_FADE_S, DEFAULT_PHOTO_S, FADE_S_RANGE, PHOTO_S_RANGE } from '@/lib/engine/clip-timing';
 import { getDB } from '@/lib/engine/db';
 import type { ClipAspect, ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
@@ -301,6 +302,32 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       return !on;
     });
   }, []);
+  // "Photos only": every keeper in filename order, no title cards or maps —
+  // for client jobs where the files carry no dates/GPS.
+  const [photosOnly, setPhotosOnly] = useState(false);
+  useEffect(() => setPhotosOnly(localStorage.getItem('picbook-clip-photos-only') === '1'), []);
+  const togglePhotosOnly = useCallback(() => {
+    setPhotosOnly((on) => {
+      localStorage.setItem('picbook-clip-photos-only', on ? '0' : '1');
+      return !on;
+    });
+  }, []);
+  const [photoS, setPhotoS] = useState(DEFAULT_PHOTO_S);
+  const [fadeS, setFadeS] = useState(DEFAULT_FADE_S);
+  useEffect(() => {
+    const p = Number(localStorage.getItem('picbook-clip-photo-s'));
+    const f = Number(localStorage.getItem('picbook-clip-fade-s'));
+    if (p > 0) setPhotoS(p);
+    if (f > 0) setFadeS(f);
+  }, []);
+  const pickPhotoS = useCallback((v: number) => {
+    setPhotoS(v);
+    localStorage.setItem('picbook-clip-photo-s', String(v));
+  }, []);
+  const pickFadeS = useCallback((v: number) => {
+    setFadeS(v);
+    localStorage.setItem('picbook-clip-fade-s', String(v));
+  }, []);
   const [video, setVideo] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Per-stage soundtrack trace, shown after rendering so device-specific
@@ -318,8 +345,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
 
   const plan = useMemo(() => {
     const target = LENGTHS.find((l) => l.label === length)?.photos ?? 40;
-    return { ...planClip(keepers, Math.min(target, keepers.length), places, pinnedIds, lang, mapsOn), transition, aspect };
-  }, [keepers, length, places, pinnedIds, transition, lang, mapsOn, aspect]);
+    const base = photosOnly
+      ? planPhotosOnly(keepers)
+      : planClip(keepers, Math.min(target, keepers.length), places, pinnedIds, lang, mapsOn);
+    return { ...base, transition, aspect, photoSeconds: photoS, fadeSeconds: fadeS };
+  }, [keepers, length, places, pinnedIds, transition, lang, mapsOn, aspect, photosOnly, photoS, fadeS]);
   const seconds = useMemo(() => clipSeconds(plan), [plan]);
   const photoIds = useMemo(
     () => plan.segments.filter((s) => s.kind === 'photo').map((s) => (s.kind === 'photo' ? s.id : '')),
@@ -446,18 +476,31 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
-          <div className="flex border-2 border-ink text-xs">
-            {LENGTHS.map((l, i) => (
-              <button
-                key={l.label}
-                onClick={() => setLength(l.label)}
-                className={`flex-1 px-3 py-2 font-bold ${i > 0 ? 'border-s-2 border-ink' : ''} ${
-                  length === l.label ? 'bg-ink text-ground' : 'text-muted'
-                }`}
-              >
-                {l.label === 'Short' ? t('lenShort') : l.label === 'Medium' ? t('lenMedium') : t('lenLong')}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {!photosOnly && (
+              <div className="flex min-w-0 flex-1 border-2 border-ink text-xs">
+                {LENGTHS.map((l, i) => (
+                  <button
+                    key={l.label}
+                    onClick={() => setLength(l.label)}
+                    className={`flex-1 px-3 py-2 font-bold ${i > 0 ? 'border-s-2 border-ink' : ''} ${
+                      length === l.label ? 'bg-ink text-ground' : 'text-muted'
+                    }`}
+                  >
+                    {l.label === 'Short' ? t('lenShort') : l.label === 'Medium' ? t('lenMedium') : t('lenLong')}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={togglePhotosOnly}
+              aria-pressed={photosOnly}
+              className={`shrink-0 px-3 py-2 text-xs font-bold ${
+                photosOnly ? 'flex-1 bg-accent text-white' : 'border-2 border-ink text-muted'
+              }`}
+            >
+              {t('photosOnly')}
+            </button>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">{t('frameShape')}</span>
@@ -490,16 +533,52 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                 {tr.label === 'Fade' ? t('trFade') : tr.label === 'Slide' ? t('trSlide') : tr.label === 'Zoom' ? t('trZoom') : tr.label === 'Wipe' ? t('trWipe') : t('trMix')}
               </button>
             ))}
-            <button
-              onClick={toggleMaps}
-              className={`shrink-0 text-[11px] font-semibold ${
-                mapsOn
-                  ? 'bg-accent px-2.5 py-1 text-white'
-                  : 'border border-line px-[9px] py-[3px] text-muted'
-              }`}
-            >
-              {t('mapTransitions')}
-            </button>
+            {!photosOnly && (
+              <button
+                onClick={toggleMaps}
+                className={`shrink-0 text-[11px] font-semibold ${
+                  mapsOn
+                    ? 'bg-accent px-2.5 py-1 text-white'
+                    : 'border border-line px-[9px] py-[3px] text-muted'
+                }`}
+              >
+                {t('mapTransitions')}
+              </button>
+            )}
+          </div>
+
+          {/* Timing sliders: seconds per photo, and crossfade length. */}
+          <div className="grid grid-cols-2 gap-3 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <label className="flex flex-col gap-1">
+              <span className="flex justify-between">
+                <span>{t('photoSeconds')}</span>
+                <span dir="ltr" className="text-ink">{t('secondsShort', { n: photoS.toFixed(1) })}</span>
+              </span>
+              <input
+                type="range"
+                min={PHOTO_S_RANGE.min}
+                max={PHOTO_S_RANGE.max}
+                step={PHOTO_S_RANGE.step}
+                value={photoS}
+                onChange={(e) => pickPhotoS(Number(e.target.value))}
+                className="accent-accent"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="flex justify-between">
+                <span>{t('fadeSeconds')}</span>
+                <span dir="ltr" className="text-ink">{t('secondsShort', { n: fadeS.toFixed(1) })}</span>
+              </span>
+              <input
+                type="range"
+                min={FADE_S_RANGE.min}
+                max={FADE_S_RANGE.max}
+                step={FADE_S_RANGE.step}
+                value={fadeS}
+                onChange={(e) => pickFadeS(Number(e.target.value))}
+                className="accent-accent"
+              />
+            </label>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -705,7 +784,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             />
           )}
           <p className="text-xs text-muted">
-            {t('clipDesc', { n: plan.photoCount })}
+            {t(photosOnly ? 'clipDescPhotosOnly' : 'clipDesc', { n: plan.photoCount })}
           </p>
           <div className="grid grid-cols-6 gap-1">
             {photoIds.slice(0, 24).map((id) => (

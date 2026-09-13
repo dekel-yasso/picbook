@@ -129,6 +129,12 @@ export const STRINGS = {
     trMix: 'Mix',
     clipDesc:
       '{n} photos in day order, with title cards, gentle motion, and crossfades. Square 1080p — rendered entirely on this device.',
+    clipDescPhotosOnly:
+      '{n} photos in filename order — no title cards or maps, just the pictures. Rendered entirely on this device.',
+    photosOnly: 'Photos only',
+    photoSeconds: 'Photo',
+    fadeSeconds: 'Transition',
+    secondsShort: '{n}s',
     renderClip: 'Render clip',
     saveVideo: 'Save video ({size} MB)',
     clipPreview: 'Clip preview',
@@ -314,6 +320,11 @@ export const STRINGS = {
     trMix: 'מיקס',
     clipDesc:
       '{n} תמונות לפי סדר הימים, עם כרטיסי כותרת, תנועה עדינה ומעברים. ריבוע 1080p — נוצר כולו על המכשיר.',
+    clipDescPhotosOnly: '{n} תמונות לפי סדר שמות הקבצים — בלי כרטיסי כותרת ומפות, רק התמונות. נוצר כולו על המכשיר.',
+    photosOnly: 'תמונות בלבד',
+    photoSeconds: 'תמונה',
+    fadeSeconds: 'מעבר',
+    secondsShort: '{n} שנ׳',
     renderClip: 'יצירת קליפ',
     saveVideo: 'שמירת וידאו ‏({size} MB)',
     clipPreview: 'תצוגה מקדימה של הקליפ',

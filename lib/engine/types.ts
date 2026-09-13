@@ -114,6 +114,10 @@ export interface ClipPlan {
   photoCount: number;
   transition?: ClipTransition;
   aspect?: ClipAspect;
+  /** Seconds each photo is on screen; default DEFAULT_PHOTO_S (see clip-timing.ts). */
+  photoSeconds?: number;
+  /** Crossfade length between segments; default DEFAULT_FADE_S. */
+  fadeSeconds?: number;
 }
 
 export type EngineRequest =

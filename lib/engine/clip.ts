@@ -4,15 +4,13 @@
 
 import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
 import { planBook } from './book';
+import { clipTiming, TITLE_S } from './clip-timing';
 import { getDB } from './db';
 import { distanceKm, drawMapFrame, loadLand, type GeoPoint } from './geo';
 import { asBlob } from './images';
 import type { ClipAspect, ClipPlan, ClipSegment, ClipTransition, EngineEvent, PhotoMeta } from './types';
 
 const FPS = 30;
-const PHOTO_S = 1.6;
-const TITLE_S = 1.4;
-const FADE_S = 0.4;
 const BITRATE = 5_000_000;
 // Enough resolution for 1080 output; renditions (2048px) downscale, thumbs upscale soft.
 const DECODE_MAX = 1600;
@@ -121,6 +119,19 @@ export function planClip(
   return { segments, photoCount };
 }
 
+/** "Photos only": every keeper, in natural filename order (IMG_2 before
+ *  IMG_10), no title cards or map segments. For client jobs where the files
+ *  carry no dates/GPS and the folder order is the intended order. */
+export function planPhotosOnly(keepers: PhotoMeta[]): ClipPlan {
+  const ordered = [...keepers].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
+  );
+  return {
+    segments: ordered.map((p) => ({ kind: 'photo' as const, id: p.id })),
+    photoCount: ordered.length,
+  };
+}
+
 function medianLocation(photos: PhotoMeta[]): GeoPoint | null {
   const pts = photos.filter((p) => p.gps);
   if (!pts.length) return null;
@@ -129,8 +140,8 @@ function medianLocation(photos: PhotoMeta[]): GeoPoint | null {
   return { lat: lats[Math.floor(lats.length / 2)], lon: lons[Math.floor(lons.length / 2)] };
 }
 
-function segSeconds(seg: ClipSegment): number {
-  return seg.kind === 'title' ? TITLE_S : seg.kind === 'map' ? seg.duration : (seg.s ?? PHOTO_S);
+function segSeconds(seg: ClipSegment, photoS: number): number {
+  return seg.kind === 'title' ? TITLE_S : seg.kind === 'map' ? seg.duration : (seg.s ?? photoS);
 }
 
 export function clipSeconds(plan: ClipPlan): number {
@@ -140,7 +151,8 @@ export function clipSeconds(plan: ClipPlan): number {
 /** Unrounded duration — the soundtrack is encoded to this, so its fade-out
  *  ends exactly with the video even after beat-sync nudges the cuts. */
 export function clipSecondsExact(plan: ClipPlan): number {
-  return plan.segments.reduce((s, seg) => s + segSeconds(seg) - FADE_S, FADE_S);
+  const { photoS, fadeS } = clipTiming(plan);
+  return plan.segments.reduce((s, seg) => s + segSeconds(seg, photoS) - fadeS, fadeS);
 }
 
 interface Timed {
@@ -164,6 +176,7 @@ export async function renderClip(
   let stage = 'setup';
   try {
   const { width, height } = dimsForAspect(plan.aspect);
+  const { photoS, fadeS } = clipTiming(plan);
   const soundtrack = sound && sound.chunks.length > 0 ? sound : null;
   stage = 'pickCodec';
   const codec = await pickCodec(width, height);
@@ -178,11 +191,11 @@ export async function renderClip(
   const timeline: Timed[] = [];
   let clock = 0;
   for (const seg of plan.segments) {
-    const duration = segSeconds(seg);
+    const duration = segSeconds(seg, photoS);
     timeline.push({ seg, start: clock, duration });
-    clock += duration - FADE_S;
+    clock += duration - fadeS;
   }
-  const totalSeconds = clock + FADE_S;
+  const totalSeconds = clock + fadeS;
   const totalFrames = Math.ceil(totalSeconds * FPS);
 
   const muxer = new Muxer({
@@ -309,7 +322,7 @@ export async function renderClip(
     if (!next || time < next.start) {
       await drawSegment(active, time - cur.start, 1);
     } else {
-      const p = Math.min(1, (time - next.start) / FADE_S);
+      const p = Math.min(1, (time - next.start) / fadeS);
       const kind = style === 'mix' ? MIX_ORDER[active % MIX_ORDER.length] : style;
       const e = ease(p);
       const tCur = time - cur.start;
