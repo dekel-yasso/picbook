@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getDB } from './db';
+import { diag } from './diag';
 import {
   fingerprint,
   type BookPlan,
@@ -121,7 +122,10 @@ export function useEngine() {
         setClipProgress((p) => ({ ...p, running: false }));
         clipResolver.current?.resolve(new Uint8Array(ev.bytes));
         clipResolver.current = null;
+      } else if (ev.type === 'diag') {
+        diag(ev.message);
       } else if (ev.type === 'engine-error') {
+        diag(`engine-error: ${ev.message}`);
         setError(ev.message);
         setProgress((p) => ({ ...p, running: false }));
         setAnalyzeProgress((p) => ({ ...p, running: false }));

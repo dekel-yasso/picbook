@@ -199,6 +199,10 @@ export async function renderClip(
   }
   const totalSeconds = clock + fadeS;
   const totalFrames = Math.ceil(totalSeconds * FPS);
+  emit({
+    type: 'diag',
+    message: `worker: render ${width}x${height} ${codec} · ${plan.segments.length} segs · ${totalFrames} frames (${totalSeconds.toFixed(0)}s) · sound ${soundtrack ? `${soundtrack.chunks.length} chunks` : 'none'}`,
+  });
 
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
@@ -395,6 +399,9 @@ export async function renderClip(
     if (f % 15 === 0 || f === totalFrames - 1) {
       emit({ type: 'clip-progress', done: f + 1, total: totalFrames });
     }
+    if (f % (FPS * 10) === 0) {
+      emit({ type: 'diag', message: `worker: frame ${f}/${totalFrames} · seg ${active} · bitmaps ${bitmaps.size} · queue ${encoder.encodeQueueSize}` });
+    }
   }
 
   stage = 'encoder.flush';
@@ -426,6 +433,7 @@ export async function renderClip(
 
   stage = 'muxer.finalize';
   muxer.finalize();
+  emit({ type: 'diag', message: `worker: done · ${(muxer.target.buffer.byteLength / 1e6).toFixed(1)}MB mp4` });
   return new Uint8Array(muxer.target.buffer);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

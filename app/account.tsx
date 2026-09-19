@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Cloud, X } from 'lucide-react';
 import { exportBackup, importBackup } from '@/lib/engine/backup';
+import { clearDiag, readDiag } from '@/lib/engine/diag';
 import { signIn, signOut, syncNow, whoami } from '@/lib/engine/sync';
 import { useI18n } from '@/lib/i18n';
 
@@ -18,6 +19,25 @@ export function AccountOverlay({ onClose, onSynced }: AccountProps) {
   const [checked, setChecked] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Crash-surviving diagnostics (clip renders etc.) — read once on open.
+  const [diagText, setDiagText] = useState('');
+  const [diagOpen, setDiagOpen] = useState(false);
+  const [diagCopied, setDiagCopied] = useState(false);
+  useEffect(() => setDiagText(readDiag()), []);
+  const copyDiag = useCallback(() => {
+    navigator.clipboard?.writeText(diagText).then(
+      () => {
+        setDiagCopied(true);
+        setTimeout(() => setDiagCopied(false), 1500);
+      },
+      () => {},
+    );
+  }, [diagText]);
+  const wipeDiag = useCallback(() => {
+    clearDiag();
+    setDiagText('');
+    setDiagOpen(false);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -214,6 +234,28 @@ export function AccountOverlay({ onClose, onSynced }: AccountProps) {
               {t('importBackup')}
             </button>
           </div>
+        </div>
+        <div className="-mx-6 border-t-2 border-ink" />
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t('diagTitle')}</span>
+            <div className="flex gap-2 text-[11px] font-semibold uppercase tracking-wide">
+              <button onClick={() => setDiagOpen((o) => !o)} disabled={!diagText} className="text-ink disabled:opacity-40">
+                {diagOpen ? t('diagHide') : t('diagShow')}
+              </button>
+              <button onClick={copyDiag} disabled={!diagText} className="text-ink disabled:opacity-40">
+                {diagCopied ? t('diagCopied') : t('diagCopy')}
+              </button>
+              <button onClick={wipeDiag} disabled={!diagText} className="text-muted disabled:opacity-40">
+                {t('diagClear')}
+              </button>
+            </div>
+          </div>
+          {diagOpen && (
+            <pre dir="ltr" className="max-h-64 overflow-auto border border-line bg-white p-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-words text-ink">
+              {diagText}
+            </pre>
+          )}
         </div>
         <div className="-mx-6 border-t-2 border-ink" />
         <div className="flex items-center justify-between">

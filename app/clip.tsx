@@ -7,6 +7,7 @@ import { detectBeats, loopBeats, syncPlanToBeats } from '@/lib/engine/beats';
 import { clipSeconds, clipSecondsExact, planClip, planPhotosOnly } from '@/lib/engine/clip';
 import { DEFAULT_FADE_S, DEFAULT_PHOTO_S, FADE_S_RANGE, PHOTO_S_RANGE } from '@/lib/engine/clip-timing';
 import { getDB } from '@/lib/engine/db';
+import { diag } from '@/lib/engine/diag';
 import type { ClipAspect, ClipPlan, ClipTransition, PhotoMeta } from '@/lib/engine/types';
 import { useI18n } from '@/lib/i18n';
 import { LangToggle } from './lang-toggle';
@@ -394,6 +395,9 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     let sound: EncodedSound | undefined;
     let renderPlan: ClipPlan = plan;
     setMusicDiag(null);
+    diag(
+      `clip: start · ${photoIds.length} photos (${files.size} originals) · ${aspect} · ${photosOnly ? 'photos-only' : length} · ${transitions.join('+')} · ${photoS}s/${fadeS}s · music ${music}${beatSync ? '+beats' : ''} · ~${clipSeconds(plan)}s`,
+    );
     if (music === 'custom') {
       // CC-licensed downloads carry a credit — closes the clip with a card.
       const stored = await (await getDB()).get('media', 'clip-soundtrack');
@@ -405,7 +409,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       }
     }
     if (music !== 'none') {
-      const diag: string[] = [`♪ ${music === 'custom' ? (customName ?? 'custom') : music}`];
+      const trace: string[] = [`♪ ${music === 'custom' ? (customName ?? 'custom') : music}`];
       // Decode → beat-sync → AAC-encode inside one call so the decoded PCM
       // (~60MB of Float32 for a 2.5min track) is unreachable — and collectable —
       // before the video encoder starts. iOS runs the page and the worker in
@@ -423,46 +427,51 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             return r.arrayBuffer();
           });
         }
-        diag.push(`fetch ${(buf.byteLength / 1e6).toFixed(1)}MB`);
+        trace.push(`fetch ${(buf.byteLength / 1e6).toFixed(1)}MB`);
         const actx = new AudioContext();
         const ab = await actx.decodeAudioData(buf);
         await actx.close();
         const keep = Math.min(ab.length, Math.round(CUSTOM_CACHE_SECONDS * ab.sampleRate));
         const channels = Array.from({ length: ab.numberOfChannels }, (_, i) => ab.getChannelData(i).slice(0, keep));
         const sampleRate = ab.sampleRate;
-        diag.push(`decoded ${Math.round(channels[0].length / sampleRate)}s@${sampleRate}`);
+        trace.push(`decoded ${Math.round(channels[0].length / sampleRate)}s@${sampleRate}`);
         if (beatSync) {
           const trackSeconds = channels[0].length / sampleRate;
           const oneTrack = detectBeats(channels, sampleRate);
           const beats = loopBeats(oneTrack, trackSeconds, clipSecondsExact(renderPlan) + 5);
           const synced = syncPlanToBeats(renderPlan, beats);
           renderPlan = synced.plan;
-          diag.push(`beats ${oneTrack.length} · cuts ${synced.snapped}/${synced.cuts} on beat`);
+          trace.push(`beats ${oneTrack.length} · cuts ${synced.snapped}/${synced.cuts} on beat`);
         }
         // AAC-encode here on the page — WebKit lacks AudioEncoder in workers.
         return (await encodeSoundtrack(channels, sampleRate, clipSecondsExact(renderPlan))) ?? undefined;
       };
       try {
         sound = await prepareSound();
-        diag.push(
+        trace.push(
           sound
             ? `encoded ${sound.chunks.length} chunks, desc ${sound.description?.byteLength ?? 0}B`
             : `encode failed (AudioEncoder: ${typeof AudioEncoder !== 'undefined' ? 'yes' : 'no'})`,
         );
       } catch (e) {
-        diag.push(`✗ ${e instanceof Error ? e.message : String(e)}`);
+        trace.push(`✗ ${e instanceof Error ? e.message : String(e)}`);
         sound = undefined;
       }
-      setMusicDiag(diag.join(' · '));
+      setMusicDiag(trace.join(' · '));
+      diag(`clip: ${trace.join(' · ')}`);
       if (!sound) setError(t('musicFailed'));
     }
     try {
+      diag('clip: handing off to worker');
       const bytes = await renderClipVideo(renderPlan, files, sound);
+      diag(`clip: done · ${(bytes.byteLength / 1e6).toFixed(1)}MB`);
       setVideo(new File([bytes], 'picbook-clip.mp4', { type: 'video/mp4' }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      diag(`clip: FAILED · ${msg}`);
+      setError(msg);
     }
-  }, [plan, photoIds, getFile, renderClipVideo, music, t]);
+  }, [plan, photoIds, getFile, renderClipVideo, music, t, aspect, beatSync, customName, fadeS, length, photoS, photosOnly, stopPreview, transitions]);
 
   // Kept synchronous inside the tap's user activation so iOS allows share().
   const save = useCallback(() => {
