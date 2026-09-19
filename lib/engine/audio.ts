@@ -76,6 +76,12 @@ export async function encodeSoundtrack(
       });
       encoder.encode(frame);
       frame.close();
+      // Backpressure: a 25-minute clip is ~15k frames; without this they all
+      // sit in the encoder queue at once (hundreds of MB) and iOS kills the page.
+      while (encoder.encodeQueueSize > 8) {
+        await new Promise((r) => setTimeout(r, 5));
+        if (failed) throw failed;
+      }
     }
     await encoder.flush();
     encoder.close();

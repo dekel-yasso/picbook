@@ -67,10 +67,8 @@ self.onmessage = async (event: MessageEvent<EngineRequest>) => {
       const postTransfer = self.postMessage as (m: EngineEvent, t: Transferable[]) => void;
       postTransfer({ type: 'cover-done', bytes: buffer }, [buffer]);
     } else if (msg.type === 'clip') {
-      const bytes = await renderClip(msg.plan, new Map(msg.files), post, msg.sound);
-      const buffer = bytes.buffer as ArrayBuffer;
-      const postTransfer = self.postMessage as (m: EngineEvent, t: Transferable[]) => void;
-      postTransfer({ type: 'clip-done', bytes: buffer }, [buffer]);
+      const blob = await renderClip(msg.plan, new Map(msg.files), post, msg.sound);
+      post({ type: 'clip-done', blob }); // Blobs clone by reference — no copy
     }
   } catch (err) {
     post({ type: 'engine-error', message: err instanceof Error ? err.message : String(err) });

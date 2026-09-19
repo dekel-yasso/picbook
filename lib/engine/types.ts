@@ -153,7 +153,9 @@ export type EngineEvent =
   | { type: 'book-done'; bytes: ArrayBuffer }
   | { type: 'cover-done'; bytes: ArrayBuffer }
   | { type: 'clip-progress'; done: number; total: number }
-  | { type: 'clip-done'; bytes: ArrayBuffer }
+  /** A Blob, not an ArrayBuffer: long clips are streamed into blob storage
+   *  rather than assembled in one contiguous buffer. */
+  | { type: 'clip-done'; blob: Blob }
   | { type: 'engine-error'; message: string }
   /** Worker-side line for the crash-surviving diagnostics log (see diag.ts). */
   | { type: 'diag'; message: string };

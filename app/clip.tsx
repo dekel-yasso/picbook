@@ -110,7 +110,7 @@ interface ClipProps {
     plan: ClipPlan,
     files: Map<string, File>,
     sound?: EncodedSound,
-  ) => Promise<Uint8Array<ArrayBuffer>>;
+  ) => Promise<Blob>;
   progress: { done: number; total: number; running: boolean };
   onClose: () => void;
 }
@@ -444,6 +444,7 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
           trace.push(`beats ${oneTrack.length} · cuts ${synced.snapped}/${synced.cuts} on beat`);
         }
         // AAC-encode here on the page — WebKit lacks AudioEncoder in workers.
+        diag(`clip: soundtrack decoded (${trace.slice(1).join(' · ')}) — AAC-encoding ${clipSecondsExact(renderPlan).toFixed(0)}s`);
         return (await encodeSoundtrack(channels, sampleRate, clipSecondsExact(renderPlan))) ?? undefined;
       };
       try {
@@ -463,9 +464,9 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     }
     try {
       diag('clip: handing off to worker');
-      const bytes = await renderClipVideo(renderPlan, files, sound);
-      diag(`clip: done · ${(bytes.byteLength / 1e6).toFixed(1)}MB`);
-      setVideo(new File([bytes], 'picbook-clip.mp4', { type: 'video/mp4' }));
+      const blob = await renderClipVideo(renderPlan, files, sound);
+      diag(`clip: done · ${(blob.size / 1e6).toFixed(1)}MB`);
+      setVideo(new File([blob], 'picbook-clip.mp4', { type: 'video/mp4' }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       diag(`clip: FAILED · ${msg}`);

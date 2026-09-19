@@ -43,7 +43,7 @@ export function useEngine() {
   const bookResolver = useRef<{ resolve: (b: Uint8Array<ArrayBuffer>) => void; reject: (e: Error) => void } | null>(null);
   const coverResolver = useRef<{ resolve: (b: Uint8Array<ArrayBuffer>) => void; reject: (e: Error) => void } | null>(null);
   const [clipProgress, setClipProgress] = useState<AnalyzeProgress>({ done: 0, total: 0, running: false });
-  const clipResolver = useRef<{ resolve: (b: Uint8Array<ArrayBuffer>) => void; reject: (e: Error) => void } | null>(null);
+  const clipResolver = useRef<{ resolve: (b: Blob) => void; reject: (e: Error) => void } | null>(null);
 
   // Analyzed metas are buffered and flushed on a timer: one state update per
   // ~250ms instead of one per photo, which matters at 2,000 photos.
@@ -120,7 +120,7 @@ export function useEngine() {
         setClipProgress({ done: ev.done, total: ev.total, running: true });
       } else if (ev.type === 'clip-done') {
         setClipProgress((p) => ({ ...p, running: false }));
-        clipResolver.current?.resolve(new Uint8Array(ev.bytes));
+        clipResolver.current?.resolve(ev.blob);
         clipResolver.current = null;
       } else if (ev.type === 'diag') {
         diag(ev.message);
@@ -244,7 +244,7 @@ export function useEngine() {
 
   const renderClipVideo = useCallback(
     (plan: ClipPlan, files: Map<string, File>, sound?: import('./audio').EncodedSound) => {
-      return new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) => {
+      return new Promise<Blob>((resolve, reject) => {
         const worker = workerRef.current;
         if (!worker) {
           reject(new Error('engine not ready'));

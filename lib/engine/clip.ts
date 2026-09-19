@@ -2,7 +2,7 @@
 // OffscreenCanvas (Ken Burns pan/zoom, crossfades, day-title cards) and
 // encoded with the browser's hardware H.264 encoder (WebCodecs). All local.
 
-import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
+import { ArrayBufferTarget, Muxer, StreamTarget } from 'mp4-muxer';
 import { planBook } from './book';
 import { clipTiming, TITLE_S } from './clip-timing';
 import { getDB } from './db';
@@ -12,6 +12,8 @@ import type { ClipAspect, ClipPlan, ClipSegment, ClipTransition, EngineEvent, Ph
 
 const FPS = 30;
 const BITRATE = 5_000_000;
+// Above this length the MP4 is streamed into a Blob instead of built in memory.
+const STREAM_THRESHOLD_S = 300;
 // Enough resolution for 1080 output; renditions (2048px) downscale, thumbs upscale soft.
 const DECODE_MAX = 1600;
 
@@ -168,7 +170,7 @@ export async function renderClip(
   files: Map<string, File>,
   emit: (e: EngineEvent) => void,
   sound?: import('./audio').EncodedSound,
-): Promise<Uint8Array> {
+): Promise<Blob> {
   if (typeof VideoEncoder === 'undefined') {
     throw new Error('Video export needs a newer browser (WebCodecs is unavailable here)');
   }
@@ -204,8 +206,39 @@ export async function renderClip(
     message: `worker: render ${width}x${height} ${codec} · ${plan.segments.length} segs · ${totalFrames} frames (${totalSeconds.toFixed(0)}s) · sound ${soundtrack ? `${soundtrack.chunks.length} chunks` : 'none'}`,
   });
 
+  // Short clips keep the proven path: whole MP4 in one buffer, moov up front.
+  // Long ones can't — 25 minutes at 5Mbps is ~1GB, far past what iOS lets a
+  // page hold — so they're muxed as fragmented MP4 and streamed into a Blob,
+  // whose storage lives outside the JS heap. Chunks are folded into the Blob
+  // every ~8MB so only a small window is ever in memory.
+  stage = 'muxer setup';
+  const streaming = totalSeconds > STREAM_THRESHOLD_S;
+  let parts: Uint8Array<ArrayBuffer>[] = [];
+  let partBytes = 0;
+  let written = 0;
+  let acc = new Blob([], { type: 'video/mp4' });
+  const foldParts = () => {
+    if (!parts.length) return;
+    acc = new Blob([acc, ...parts], { type: 'video/mp4' });
+    parts = [];
+    partBytes = 0;
+  };
+  const bufferTarget = streaming ? null : new ArrayBufferTarget();
+  const target =
+    bufferTarget ??
+    new StreamTarget({
+      chunked: true,
+      onData: (data, position) => {
+        // Fragmented output is append-only; a seek-back would corrupt the Blob.
+        if (position !== written) throw new Error(`non-sequential mp4 write at ${position} (expected ${written})`);
+        written += data.byteLength;
+        parts.push(new Uint8Array(data)); // copy: the muxer may reuse its buffer
+        partBytes += data.byteLength;
+        if (partBytes >= 8_000_000) foldParts();
+      },
+    });
   const muxer = new Muxer({
-    target: new ArrayBufferTarget(),
+    target,
     video: { codec: 'avc', width, height },
     ...(soundtrack
       ? {
@@ -216,7 +249,7 @@ export async function renderClip(
           },
         }
       : {}),
-    fastStart: 'in-memory',
+    fastStart: streaming ? 'fragmented' : 'in-memory',
   });
   // The error callback fires asynchronously from the browser's own encoder
   // machinery, outside our call stack — throwing directly from it here would
@@ -433,8 +466,10 @@ export async function renderClip(
 
   stage = 'muxer.finalize';
   muxer.finalize();
-  emit({ type: 'diag', message: `worker: done · ${(muxer.target.buffer.byteLength / 1e6).toFixed(1)}MB mp4` });
-  return new Uint8Array(muxer.target.buffer);
+  foldParts();
+  const out = bufferTarget ? new Blob([bufferTarget.buffer], { type: 'video/mp4' }) : acc;
+  emit({ type: 'diag', message: `worker: done · ${(out.size / 1e6).toFixed(1)}MB mp4${streaming ? ' (streamed, fragmented)' : ''}` });
+  return out;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[${stage}] ${msg}`);
