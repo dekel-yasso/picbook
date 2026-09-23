@@ -133,6 +133,8 @@ export const STRINGS = {
     clipDescPhotosOnly:
       '{n} photos in filename order — no title cards or maps, just the pictures. Rendered entirely on this device.',
     photosOnly: 'Photos only',
+    photosOnlyTooMany:
+      '⚠ Photos only includes all {n} photos — about {min} minutes of video and a very large file. Turn it off to let PicBook pick the best ones, or use fewer photos / a shorter photo time.',
     photoSeconds: 'Photo',
     fadeSeconds: 'Transition',
     secondsShort: '{n}s',
@@ -332,6 +334,8 @@ export const STRINGS = {
       '{n} תמונות לפי סדר הימים, עם כרטיסי כותרת, תנועה עדינה ומעברים. ריבוע 1080p — נוצר כולו על המכשיר.',
     clipDescPhotosOnly: '{n} תמונות לפי סדר שמות הקבצים — בלי כרטיסי כותרת ומפות, רק התמונות. נוצר כולו על המכשיר.',
     photosOnly: 'תמונות בלבד',
+    photosOnlyTooMany:
+      '⚠ במצב "תמונות בלבד" נכללות כל {n} התמונות — בערך {min} דקות וידאו וקובץ גדול מאוד. כבו אותו כדי ש-PicBook תבחר את הטובות ביותר, או השתמשו בפחות תמונות / זמן תמונה קצר יותר.',
     photoSeconds: 'תמונה',
     fadeSeconds: 'מעבר',
     secondsShort: '{n} שנ׳',

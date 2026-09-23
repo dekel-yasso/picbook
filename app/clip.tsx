@@ -76,6 +76,8 @@ type MusicKey = 'none' | 'custom' | (typeof TRACKS)[number]['key'] | (typeof ORI
 const CUSTOM_CACHE_SECONDS = 160;
 // Inline <video> preview only below this; larger outputs go straight to Save.
 const PREVIEW_MAX_BYTES = 200_000_000;
+// Photos only includes every keeper; above this many, warn about the length.
+const PHOTOS_ONLY_WARN = 300;
 
 // Trip theme (from the CLIP pass) → suggested Original, used until the user
 // picks a track themselves.
@@ -534,28 +536,33 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
           <div className="flex items-center gap-2">
-            {!photosOnly && (
-              <div className="flex min-w-0 flex-1 border-2 border-ink text-xs">
-                {LENGTHS.map((l, i) => (
-                  <button
-                    key={l.label}
-                    onClick={() => setLength(l.label)}
-                    className={`flex-1 px-3 py-2 font-bold ${i > 0 ? 'border-s-2 border-ink' : ''} ${
-                      length === l.label ? 'bg-ink text-ground' : 'text-muted'
-                    }`}
-                  >
-                    {l.label === 'Short' ? t('lenShort') : l.label === 'Medium' ? t('lenMedium') : t('lenLong')}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Length stays visible but dimmed in Photos only, so the mode reads
+                as "a switch is on", not as a different screen. */}
+            <div
+              aria-disabled={photosOnly}
+              className={`flex min-w-0 flex-1 border-2 border-ink text-xs ${photosOnly ? 'pointer-events-none opacity-35' : ''}`}
+            >
+              {LENGTHS.map((l, i) => (
+                <button
+                  key={l.label}
+                  onClick={() => setLength(l.label)}
+                  disabled={photosOnly}
+                  className={`flex-1 px-3 py-2 font-bold ${i > 0 ? 'border-s-2 border-ink' : ''} ${
+                    length === l.label && !photosOnly ? 'bg-ink text-ground' : 'text-muted'
+                  }`}
+                >
+                  {l.label === 'Short' ? t('lenShort') : l.label === 'Medium' ? t('lenMedium') : t('lenLong')}
+                </button>
+              ))}
+            </div>
             <button
               onClick={togglePhotosOnly}
               aria-pressed={photosOnly}
-              className={`shrink-0 px-3 py-2 text-xs font-bold ${
-                photosOnly ? 'flex-1 bg-accent text-white' : 'border-2 border-ink text-muted'
+              className={`flex shrink-0 items-center gap-1.5 border-2 px-3 py-2 text-xs font-bold ${
+                photosOnly ? 'border-accent bg-accent text-white' : 'border-ink text-muted'
               }`}
             >
+              {photosOnly && <Check size={14} strokeWidth={3} />}
               {t('photosOnly')}
             </button>
           </div>
@@ -850,6 +857,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
           <p className="text-xs text-muted">
             {t(photosOnly ? 'clipDescPhotosOnly' : 'clipDesc', { n: plan.photoCount })}
           </p>
+          {photosOnly && plan.photoCount > PHOTOS_ONLY_WARN && (
+            <p role="alert" className="border-2 border-accent px-3 py-2 text-xs font-semibold text-ink">
+              {t('photosOnlyTooMany', { n: plan.photoCount, min: Math.round(seconds / 60) })}
+            </p>
+          )}
           <div className="grid grid-cols-6 gap-1">
             {photoIds.slice(0, 24).map((id) => (
               <Thumb key={id} id={id} alt="" />
