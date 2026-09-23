@@ -74,6 +74,8 @@ const TRACKS = [
 type MusicKey = 'none' | 'custom' | (typeof TRACKS)[number]['key'] | (typeof ORIGINALS)[number]['key'];
 // Cap the decoded PCM we keep around for long custom songs (clips are ≤ ~2.5min).
 const CUSTOM_CACHE_SECONDS = 160;
+// Inline <video> preview only below this; larger outputs go straight to Save.
+const PREVIEW_MAX_BYTES = 200_000_000;
 
 // Trip theme (from the CLIP pass) → suggested Original, used until the user
 // picks a track themselves.
@@ -355,7 +357,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
   const [musicDiag, setMusicDiag] = useState<string | null>(null);
 
   // Inline playback of the rendered clip, before any share/save.
-  const videoUrl = useMemo(() => (video ? URL.createObjectURL(video) : null), [video]);
+  // No inline preview for huge outputs: iOS loads the blob into the <video>
+  // element eagerly, and a 600MB clip took the whole page down with it right
+  // after a successful 10-minute render. Save/share still works at any size.
+  const previewable = !!video && video.size <= PREVIEW_MAX_BYTES;
+  const videoUrl = useMemo(() => (video && video.size <= PREVIEW_MAX_BYTES ? URL.createObjectURL(video) : null), [video]);
   useEffect(
     () => () => {
       if (videoUrl) URL.revokeObjectURL(videoUrl);
@@ -383,7 +389,24 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     [plan],
   );
 
+  // One render at a time — the diagnostics once showed two interleaved.
+  const renderingRef = useRef(false);
   const generate = useCallback(async () => {
+    if (renderingRef.current) return;
+    renderingRef.current = true;
+    // A 10-minute render outlives the screen-lock timer; when iOS suspends
+    // the page it tears down the hardware encoder ("Encoding task did not
+    // complete"). Hold a wake lock for the duration where supported.
+    let wake: { release: () => Promise<void> } | null = null;
+    try {
+      wake = (await navigator.wakeLock?.request('screen')) ?? null;
+    } catch {
+      // not granted / unsupported — render anyway
+    }
+    const finish = () => {
+      renderingRef.current = false;
+      wake?.release().catch(() => {});
+    };
     stopPreview();
     setError(null);
     setVideo(null);
@@ -470,7 +493,9 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       diag(`clip: FAILED · ${msg}`);
-      setError(msg);
+      setError(msg.includes('Encoding task did not complete') ? `${msg} — ${t('renderInterruptedHint')}` : msg);
+    } finally {
+      finish();
     }
   }, [plan, photoIds, getFile, renderClipVideo, music, t, aspect, beatSync, customName, fadeS, length, photoS, photosOnly, stopPreview, transitions]);
 
@@ -816,6 +841,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
               className="w-full bg-black"
               aria-label={t('clipPreview')}
             />
+          )}
+          {video && !previewable && (
+            <p className="border-2 border-ink px-3 py-2 text-xs font-semibold text-ink">
+              {t('previewTooLarge', { size: (video.size / 1e6).toFixed(0) })}
+            </p>
           )}
           <p className="text-xs text-muted">
             {t(photosOnly ? 'clipDescPhotosOnly' : 'clipDesc', { n: plan.photoCount })}

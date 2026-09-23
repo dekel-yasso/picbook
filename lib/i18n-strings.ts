@@ -159,6 +159,8 @@ export const STRINGS = {
     saveImagesZip: 'Save images ({size}MB)',
     saveCover: 'Save cover PDF',
     musicFailed: '⚠ The music track could not be included — the clip was rendered silent. Try re-rendering.',
+    previewTooLarge: 'Preview skipped — {size} MB is too big to play in-app on a phone. Save the video and watch it in Photos.',
+    renderInterruptedHint: 'The phone likely went to sleep mid-render. Keep the app open and the screen on until it finishes.',
     // account
     accountTitle: 'Account & sync',
     signedInAs: 'Signed in as',
@@ -356,6 +358,8 @@ export const STRINGS = {
     saveImagesZip: 'שמירת תמונות ({size}MB)',
     saveCover: 'שמירת כריכה PDF',
     musicFailed: '⚠ לא הצלחנו לכלול את המוזיקה — הקליפ נוצר ללא קול. נסו ליצור שוב.',
+    previewTooLarge: 'התצוגה המקדימה הושמטה — ‎{size} MB גדול מדי לניגון בתוך האפליקציה בטלפון. שמרו את הווידאו וצפו בו בתמונות.',
+    renderInterruptedHint: 'כנראה שהטלפון נכנס לשינה באמצע היצירה. השאירו את האפליקציה פתוחה והמסך דולק עד הסיום.',
     accountTitle: 'חשבון וסנכרון',
     signedInAs: 'מחובר בתור',
     syncBody:
