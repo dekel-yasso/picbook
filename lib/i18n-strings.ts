@@ -129,9 +129,9 @@ export const STRINGS = {
     trWipe: 'Wipe',
     trMix: 'Mix',
     clipDesc:
-      '{n} photos in day order, with title cards, gentle motion, and crossfades. Square 1080p — rendered entirely on this device.',
+      '{n} photos in day order, with title cards, gentle motion, and crossfades. {shape} {size} — rendered entirely on this device.',
     clipDescPhotosOnly:
-      '{n} photos in filename order — no title cards or maps, just the pictures. Rendered entirely on this device.',
+      '{n} photos in filename order — no title cards or maps, just the pictures. {shape} {size} — rendered entirely on this device.',
     photosOnly: 'Photos only',
     photosOnlyTooMany:
       '⚠ Photos only includes all {n} photos — about {min} minutes of video and a very large file. Turn it off to let PicBook pick the best ones, or use fewer photos / a shorter photo time.',
@@ -147,7 +147,9 @@ export const STRINGS = {
     musicUpbeat: 'Upbeat',
     musicCalm: 'Calm',
     musicCinematic: 'Cinematic',
-    musicCustom: '🎵 Your track…',
+    musicCustom: 'Use your own song',
+    musicCustomHint: 'Pick an MP3, M4A or WAV from this device',
+    musicCustomChange: 'Tap to choose a different song',
     musicPreview: 'Preview track',
     beatSync: '🥁 Beat sync',
     musicSearch: 'Search',
@@ -331,8 +333,8 @@ export const STRINGS = {
     trWipe: 'וילון',
     trMix: 'מיקס',
     clipDesc:
-      '{n} תמונות לפי סדר הימים, עם כרטיסי כותרת, תנועה עדינה ומעברים. ריבוע 1080p — נוצר כולו על המכשיר.',
-    clipDescPhotosOnly: '{n} תמונות לפי סדר שמות הקבצים — בלי כרטיסי כותרת ומפות, רק התמונות. נוצר כולו על המכשיר.',
+      '{n} תמונות לפי סדר הימים, עם כרטיסי כותרת, תנועה עדינה ומעברים. {shape} {size} — נוצר כולו על המכשיר.',
+    clipDescPhotosOnly: '{n} תמונות לפי סדר שמות הקבצים — בלי כרטיסי כותרת ומפות, רק התמונות. {shape} {size} — נוצר כולו על המכשיר.',
     photosOnly: 'תמונות בלבד',
     photosOnlyTooMany:
       '⚠ במצב "תמונות בלבד" נכללות כל {n} התמונות — בערך {min} דקות וידאו וקובץ גדול מאוד. כבו אותו כדי ש-PicBook תבחר את הטובות ביותר, או השתמשו בפחות תמונות / זמן תמונה קצר יותר.',
@@ -348,7 +350,9 @@ export const STRINGS = {
     musicUpbeat: 'קצבי',
     musicCalm: 'רגוע',
     musicCinematic: 'קולנועי',
-    musicCustom: '🎵 קובץ משלכם…',
+    musicCustom: 'שיר משלכם',
+    musicCustomHint: 'בחרו קובץ MP3, M4A או WAV מהמכשיר',
+    musicCustomChange: 'הקישו כדי לבחור שיר אחר',
     musicPreview: 'האזנה לקטע',
     beatSync: '🥁 סנכרון לקצב',
     musicSearch: 'חיפוש',

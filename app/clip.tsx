@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Pause, Play, Search, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Pause, Play, Search, Upload, X } from 'lucide-react';
 import { encodeSoundtrack, type EncodedSound } from '@/lib/engine/audio';
 import { detectBeats, loopBeats, syncPlanToBeats } from '@/lib/engine/beats';
-import { clipSeconds, clipSecondsExact, planClip, planPhotosOnly } from '@/lib/engine/clip';
+import { clipSeconds, clipSecondsExact, dimsForAspect, planClip, planPhotosOnly } from '@/lib/engine/clip';
 import { DEFAULT_FADE_S, DEFAULT_PHOTO_S, FADE_S_RANGE, PHOTO_S_RANGE } from '@/lib/engine/clip-timing';
 import { getDB } from '@/lib/engine/db';
 import { diag } from '@/lib/engine/diag';
@@ -694,24 +694,24 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
                     >
                       {t('musicNone')}
                     </button>
-                    <button
-                      onClick={pickCustom}
-                      className={`shrink-0 text-[11px] font-semibold ${
-                        music === 'custom'
-                          ? 'bg-accent px-2.5 py-1 text-white'
-                          : 'border border-line px-[9px] py-[3px] text-muted'
-                      }`}
-                    >
-                      {music === 'custom' && customName
-                        ? customName.length > 18
-                          ? customName.slice(0, 16) + '…'
-                          : customName
-                        : t('musicCustom')}
+                  </div>
+                  <div className={`flex items-stretch border-2 ${music === 'custom' ? 'border-accent' : 'border-ink'} bg-white`}>
+                    <button onClick={pickCustom} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-start">
+                      <Upload className="shrink-0 text-accent" size={18} strokeWidth={2.25} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-extrabold text-ink">
+                          {music === 'custom' && customName ? customName : t('musicCustom')}
+                        </span>
+                        <span className="block text-[11px] text-muted">
+                          {music === 'custom' && customName ? t('musicCustomChange') : t('musicCustomHint')}
+                        </span>
+                      </span>
+                      {music === 'custom' && <Check className="shrink-0 text-accent" size={14} strokeWidth={2.5} />}
                     </button>
                     {customName && (
                       <button
                         onClick={() => togglePreview('custom')}
-                        className="shrink-0 border border-line px-2 py-1 text-muted"
+                        className="shrink-0 border-s border-line px-3 text-muted"
                         aria-label={t('musicPreview')}
                       >
                         {previewing === 'custom' ? (
@@ -855,7 +855,11 @@ export function ClipOverlay({ keepers, pinnedIds, places, getFile, renderClipVid
             </p>
           )}
           <p className="text-xs text-muted">
-            {t(photosOnly ? 'clipDescPhotosOnly' : 'clipDesc', { n: plan.photoCount })}
+            {t(photosOnly ? 'clipDescPhotosOnly' : 'clipDesc', {
+              n: plan.photoCount,
+              shape: t(ASPECTS.find((a) => a.value === aspect)!.labelKey),
+              size: `\u2066${dimsForAspect(aspect).width}×${dimsForAspect(aspect).height}\u2069`,
+            })}
           </p>
           {photosOnly && plan.photoCount > PHOTOS_ONLY_WARN && (
             <p role="alert" className="border-2 border-accent px-3 py-2 text-xs font-semibold text-ink">
